@@ -67,3 +67,12 @@ function replaceOnce(s, from, to, label) {
   );
   fs.writeFileSync(p, s);
 }
+
+
+{
+  const p = "src/tests/local.test.ts";
+  let t = fs.readFileSync(p, "utf8");
+  t = replaceOnce(t, 'test("exposes 16 local tools with no payment fields"', 'test("exposes 17 local tools with no payment fields"', "tool-count test title");
+  t = replaceOnce(t, "assert.equal(listed.tools.length, 16);", "assert.equal(listed.tools.length, 17);", "tool-count assertion");
+  fs.writeFileSync(p, t);
+}
