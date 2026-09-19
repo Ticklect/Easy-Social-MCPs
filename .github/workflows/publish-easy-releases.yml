@@ -1,5 +1,4 @@
 name: Publish Easy releases
-# Publish both current MCPB releases.
 
 on:
   push:
@@ -13,50 +12,157 @@ permissions:
   contents: write
 
 jobs:
-  publish:
+  publish-reddit-v030:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reconstruct and verify v0.3.0 patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -f patches/reddit-easy-v0.3.0.patch ]]; then
+            cp patches/reddit-easy-v0.3.0.patch /tmp/reddit030.patch
+          else
+            cat patches/reddit-easy-v0.3.0.b64.* > /tmp/reddit030.patch.b64
+            test "$(wc -c < /tmp/reddit030.patch.b64)" -eq 38416
+            echo "6cb8d19ce399bb8107a5e8207d0bbaf1b2b51c29bf151e1164d5481459595861  /tmp/reddit030.patch.b64" | sha256sum -c -
+            base64 -d /tmp/reddit030.patch.b64 > /tmp/reddit030.patch
+          fi
+          echo "f17a440b1c30c97311bd73c1f6425738396ee960b75dd22463d45255e208626a  /tmp/reddit030.patch" | sha256sum -c -
+
+      - name: Build Reddit Easy v0.3.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/reddit-base build030
+          mkdir -p /tmp/reddit-base build030/src build030/dist
+
+          gh release download reddit-easy-v0.2.1 --pattern reddit-easy.mcpb --dir /tmp/reddit-base
+          echo "f53654e2a7e811f41ff6238a5eb8027834083136a27421b8c1da4a733517bb60  /tmp/reddit-base/reddit-easy.mcpb" | sha256sum -c -
+          unzip -p /tmp/reddit-base/reddit-easy.mcpb dist/index.js > build030/src/index.js
+
+          patch --batch -p1 -d build030 < /tmp/reddit030.patch
+          cp build030/src/index.js build030/dist/index.js
+          cp manifest.json package.json package-lock.json README.md SECURITY.md LICENSE .gitignore build030/
+
+          node --check build030/src/index.js
+          node --check build030/dist/index.js
+          cmp build030/src/index.js build030/dist/index.js
+          node - <<'NODE'
+          const fs = require("fs");
+          const manifest = JSON.parse(fs.readFileSync("build030/manifest.json", "utf8"));
+          const pkg = JSON.parse(fs.readFileSync("build030/package.json", "utf8"));
+          if (manifest.version !== "0.3.0") throw new Error("manifest version mismatch");
+          if (pkg.version !== "0.3.0") throw new Error("package version mismatch");
+          if (!Array.isArray(manifest.tools) || manifest.tools.length !== 22) throw new Error("expected 22 tools");
+          const expected = [
+            "get_home_feed","get_subreddit_feed","search_reddit","read_post","get_comments",
+            "get_inbox","get_notifications","get_saved","get_user_profile","get_user_posts",
+            "get_popular","get_all"
+          ];
+          const names = new Set(manifest.tools.map(t => t.name));
+          for (const name of expected) if (!names.has(name)) throw new Error("missing tool " + name);
+          console.log("manifest smoke PASS: 22 tools");
+          NODE
+
+      - name: Package v0.3.0
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f reddit-easy-v0.3.0.mcpb reddit-easy-v0.3.0-source.zip reddit-easy-v0.3.0.mcpb.sha256
+
+          (
+            cd build030
+            zip -X -q ../reddit-easy-v0.3.0.mcpb               manifest.json package.json dist/index.js README.md SECURITY.md LICENSE
+            zip -X -q -r ../reddit-easy-v0.3.0-source.zip               manifest.json package.json package-lock.json src dist README.md SECURITY.md LICENSE .gitignore
+          )
+
+          sha256sum reddit-easy-v0.3.0.mcpb | sed 's#  reddit-easy-v0.3.0.mcpb#  reddit-easy-v0.3.0.mcpb#' > reddit-easy-v0.3.0.mcpb.sha256
+          cp reddit-easy-v0.3.0.mcpb reddit-easy.mcpb
+          printf '%s  reddit-easy.mcpb\n' "$(sha256sum reddit-easy.mcpb | awk '{print $1}')" > reddit-easy.mcpb.sha256
+
+          rm -rf /tmp/mcpb-smoke
+          mkdir /tmp/mcpb-smoke
+          unzip -q reddit-easy-v0.3.0.mcpb -d /tmp/mcpb-smoke
+          node --check /tmp/mcpb-smoke/dist/index.js
+          node - <<'NODE'
+          const fs = require("fs");
+          const m = JSON.parse(fs.readFileSync("/tmp/mcpb-smoke/manifest.json", "utf8"));
+          if (m.version !== "0.3.0" || m.tools.length !== 22) throw new Error("packaged manifest mismatch");
+          console.log("MCPB package smoke PASS");
+          NODE
+
+      - name: Commit v0.3.0 source and artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p src dist patches
+          cp build030/src/index.js src/index.js
+          cp build030/dist/index.js dist/index.js
+          cp /tmp/reddit030.patch patches/reddit-easy-v0.3.0.patch
+
+          rm -f patches/reddit-easy-v0.3.0.b64.* patches/reddit-easy-v0.3.0.patch.b64.*
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/index.js dist/index.js             reddit-easy.mcpb reddit-easy.mcpb.sha256             reddit-easy-v0.3.0.mcpb reddit-easy-v0.3.0.mcpb.sha256             reddit-easy-v0.3.0-source.zip patches
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish Reddit Easy v0.3.0"
+            git push origin HEAD:main
+          fi
+
+      - name: Publish Reddit Easy v0.3.0 release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="reddit-easy-v0.3.0"
+          target="$(git rev-parse HEAD)"
+          cat > /tmp/reddit-easy-v030-notes.md <<'EOF'
+          Reddit Easy v0.3.0 expands the plugin from mainly posting into a full Reddit reader + writer while keeping the same one-time browser login.
+
+          New read tools cover the personalized home feed, subreddit feeds, Reddit search, full posts, nested comments, inbox/mentions/messages, notifications with inbox fallback, saved items, user profiles/activity, r/popular and r/all. Listing tools return Reddit after-cursors so agents can continue onto later pages.
+
+          Setup stays the same: import the MCPB → run reddit_login → sign in → run reddit_status.
+
+          The package has no third-party runtime dependencies. The release bundle, full source ZIP and SHA-256 checksum are attached.
+
+          Note: package/unit smoke tests validate the MCP and parsing locally, but Reddit can change authenticated web/API surfaces at any time.
+          EOF
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag"               reddit-easy-v0.3.0.mcpb               reddit-easy-v0.3.0-source.zip               reddit-easy-v0.3.0.mcpb.sha256               --clobber
+          else
+            gh release create "$tag"               --target "$target"               --title "Reddit Easy v0.3.0"               --notes-file /tmp/reddit-easy-v030-notes.md               reddit-easy-v0.3.0.mcpb               reddit-easy-v0.3.0-source.zip               reddit-easy-v0.3.0.mcpb.sha256
+          fi
+
+  keep-x-release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Publish Reddit Easy v0.2.1
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="reddit-easy-v0.2.1"
-          if gh release view "$tag" >/dev/null 2>&1; then
-            echo "$tag already exists; leaving it unchanged."
-          else
-            cat > /tmp/reddit-easy-notes.md <<'EOF'
-          Reddit Easy makes Reddit MCP setup deliberately simple: import the bundle, sign in once in a dedicated local browser, then use Reddit tools without configuring a Reddit developer app, client ID, client secret, or password field.
-
-          Setup: import `reddit-easy.mcpb` → run `reddit_login` → sign in → run `reddit_status`.
-
-          This release includes the ready-to-import MCPB, source archive, and SHA-256 checksum.
-          EOF
-            gh release create "$tag"               --target 364e037dd67879e579adea560221e820b93fa311               --title "Reddit Easy v0.2.1"               --notes-file /tmp/reddit-easy-notes.md               reddit-easy.mcpb               reddit-easy-v0.2.1-source.zip               reddit-easy.mcpb.sha256
-          fi
-
-      - name: Publish X Easy v0.1.0
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Ensure X Easy v0.1.0 release exists
         shell: bash
         run: |
           set -euo pipefail
           tag="x-easy-v0.1.0"
           if gh release view "$tag" >/dev/null 2>&1; then
-            echo "$tag already exists; leaving it unchanged."
-          else
-            cat > /tmp/x-easy-notes.md <<'EOF'
-          X Easy brings the same import → log in → use flow to X/Twitter. It uses a dedicated local browser session and exposes timeline, search, mentions, notifications, bookmarks, posting, replies, likes, reposts and bookmarks through MCP.
-
-          Setup: import `x-easy-v0.1.0.mcpb` → run `x_login` → sign in → run `x_status`.
-
-          Important: this is an unofficial browser-session integration, not the official X API. Browser automation can carry platform/account risk. Do not use it for spam, mass posting, artificial engagement, or bypassing X controls.
-
-          X Easy adapts portions of the MIT-licensed SohrabZ/x-browser-mcp v0.0.9 project; attribution is included in the repository.
-          EOF
-            gh release create "$tag"               --target 5d5634a5d46d3ac5e88c64f7f2e0f6e3b0f1c6be               --title "X Easy v0.1.0"               --notes-file /tmp/x-easy-notes.md               x-easy/x-easy-v0.1.0.mcpb               x-easy/x-easy-v0.1.0.mcpb.sha256
+            echo "$tag already exists."
+            exit 0
           fi
+          cat > /tmp/x-easy-notes.md <<'EOF'
+          X Easy uses a dedicated local browser session and exposes timeline, search, mentions, notifications, bookmarks, posting, replies, likes, reposts and bookmarks through MCP.
+
+          Setup: import x-easy-v0.1.0.mcpb → run x_login → sign in → run x_status.
+
+          Important: this is an unofficial browser-session integration, not the official X API. Browser automation can carry platform/account risk.
+          EOF
+          gh release create "$tag"             --title "X Easy v0.1.0"             --notes-file /tmp/x-easy-notes.md             x-easy/x-easy-v0.1.0.mcpb             x-easy/x-easy-v0.1.0.mcpb.sha256
