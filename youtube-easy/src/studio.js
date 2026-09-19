@@ -29,7 +29,9 @@ function sameTags(a, b) {
 }
 
 function verificationError(mismatches) {
-  return new Error(`Verification failed; final YouTube Studio action was not clicked: ${mismatches.join("; ")}`);
+  const error = new Error(`Verification failed; final YouTube Studio action was not clicked: ${mismatches.join("; ")}`);
+  error.finalActionNotSent = true;
+  return error;
 }
 
 function compareRequested(expected, actual, keys) {
@@ -438,7 +440,12 @@ export class StudioAdapter {
       let visibility=null;for(const name of ['PRIVATE','UNLISTED','PUBLIC','SCHEDULE'])if(checked(name))visibility=name==='SCHEDULE'?'scheduled':name.toLowerCase();
       const playlists=Array.from(document.querySelectorAll('[role="menuitemcheckbox"][aria-checked="true"],tp-yt-paper-checkbox[checked],ytcp-checkbox-lit[checked]')).map(el=>(el.textContent||'').trim()).filter(Boolean);
       const tag=Array.from(document.querySelectorAll('input,textarea,[contenteditable="true"]')).find(el=>/tag/i.test(el.getAttribute('aria-label')||el.placeholder||el.id||''));
-      return {title:text(${JSON.stringify(STUDIO_SELECTORS.title)}),description:text(${JSON.stringify(STUDIO_SELECTORS.description)}),madeForKids,visibility,playlist:playlists.length===1?playlists[0]:null,tags:tag?String(tag.value??tag.textContent??'').split(',').map(x=>x.trim()).filter(Boolean):null};
+      const images=Array.from(document.querySelectorAll('input[type="file"][accept*="image"]')).filter(input=>input.files?.length);
+      const scheduleInputs=Array.from(document.querySelectorAll('input')).filter(el=>/date|time/.test((el.getAttribute('aria-label')||el.placeholder||'').toLowerCase()));
+      const scheduleText=scheduleInputs.map(el=>el.value).filter(Boolean).join(' ');
+      const parsedSchedule=scheduleText?new Date(scheduleText):null;
+      const tzNode=Array.from(document.querySelectorAll('*')).find(el=>el.children.length===0&&/\b(?:GMT|UTC)[+-]?\d{0,2}(?::\d{2})?\b/i.test((el.textContent||'').trim()));
+      return {title:text(${JSON.stringify(STUDIO_SELECTORS.title)}),description:text(${JSON.stringify(STUDIO_SELECTORS.description)}),madeForKids,visibility,playlist:playlists.length===1?playlists[0]:null,tags:tag?String(tag.value??tag.textContent??'').split(',').map(x=>x.trim()).filter(Boolean):null,thumbnailFileName:images.length===1?images[0].files[0].name:null,publishAt:parsedSchedule&&Number.isFinite(parsedSchedule.getTime())?parsedSchedule.toISOString():null,scheduleTimeZone:tzNode?(tzNode.textContent||'').trim():null};
     })()`);
   }
 
@@ -449,6 +456,14 @@ export class StudioAdapter {
       verify: verifyEditState,
       commit: async () => await this.clickSemantic(["save"], [STUDIO_SELECTORS.editSave]),
     });
+  }
+
+  async commitThumbnail(expected) {
+    return await this.commitEdit({ thumbnailFileName: expected.thumbnailFileName });
+  }
+
+  async commitSchedule(expected) {
+    return await this.commitEdit({ visibility: "scheduled", publishAt: expected.publishAt });
   }
 
   async setThumbnailFile(filePath) {

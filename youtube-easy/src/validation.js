@@ -76,7 +76,7 @@ function regularFile(fsApi, value, label) {
   return { path: canonical, size: Number(stat.size), mtimeMs: Number(stat.mtimeMs || 0) };
 }
 
-function validatePublishAt(value) {
+export function validatePublishAt(value) {
   if (typeof value !== "string" || !value.trim()) throw new Error("publish_at must be an ISO-8601 timestamp.");
   if (!/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) throw new Error("publish_at must include an explicit UTC offset or Z.");
   if (!Number.isFinite(Date.parse(value))) throw new Error("publish_at must be a valid ISO-8601 timestamp.");

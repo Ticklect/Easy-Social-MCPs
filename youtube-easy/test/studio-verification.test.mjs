@@ -32,6 +32,13 @@ test("exact Studio state passes and returns persisted video identifiers", () => 
   assert.equal(verified.publicUrl, "https://youtu.be/abc123xyz89");
 });
 
+test("verification errors identify that no final Studio action was sent", () => {
+  let error;
+  try { verifyUploadState(expected, { ...actual, visibility: null }); }
+  catch (caught) { error = caught; }
+  assert.equal(error?.finalActionNotSent, true);
+});
+
 const mismatches = [
   ["selected filename", { fileName: "other.mp4" }],
   ["selected file size", { fileSize: 123 }],
@@ -126,4 +133,21 @@ test("Studio adapter accepts a verified 24-character UC channel ID for the direc
   const channelId = `UC${"A".repeat(22)}`;
   await adapter.openUploadDialog(channelId);
   assert.equal(navigated, `https://studio.youtube.com/channel/${channelId}/videos/upload`);
+});
+
+test("thumbnail and schedule commits reuse the same fail-closed edit gate", async () => {
+  let saves = 0;
+  let state = { thumbnailFileName: "thumb.png", visibility: "private" };
+  const client = {
+    async evaluate(expression) {
+      if (expression.includes("__youtubeEasyReadEditState")) return state;
+      if (expression.includes("__youtubeEasyClickSemantic")) { saves++; return { clicked: true, label: "Save" }; }
+      throw new Error("unexpected expression");
+    },
+  };
+  const adapter = new StudioAdapter({ client, sleepFn: async () => {} });
+  assert.equal((await adapter.commitThumbnail({ thumbnailFileName: "thumb.png" })).thumbnailFileName, "thumb.png");
+  state = { visibility: "scheduled", publishAt: "2030-06-07T12:30:00Z", scheduleTimeZone: "UTC" };
+  assert.equal((await adapter.commitSchedule({ publishAt: "2030-06-07T12:30:00Z" })).visibility, "scheduled");
+  assert.equal(saves, 2);
 });
