@@ -151,3 +151,19 @@ test("thumbnail and schedule commits reuse the same fail-closed edit gate", asyn
   assert.equal((await adapter.commitSchedule({ publishAt: "2030-06-07T12:30:00Z" })).visibility, "scheduled");
   assert.equal(saves, 2);
 });
+
+test("Studio video reads include bounded processing and checks status", async () => {
+  const client = {
+    async evaluate(expression) {
+      if (expression.includes("__youtubeEasyReadEditState")) return { title: "Upload", visibility: "private" };
+      if (expression.includes("__youtubeEasyReadProcessingState")) return { uploadStatus: "Processing 42%", checksStatus: "Checks complete" };
+      if (expression.includes("document.querySelector")) return true;
+      throw new Error(`unexpected expression: ${expression.slice(0, 80)}`);
+    },
+  };
+  const browser = { async navigate(_client, url) { return url; } };
+  const adapter = new StudioAdapter({ client, browser, sleepFn: async () => {} });
+  const result = await adapter.readVideo("abc123xyz89");
+  assert.equal(result.uploadStatus, "Processing 42%");
+  assert.equal(result.checksStatus, "Checks complete");
+});

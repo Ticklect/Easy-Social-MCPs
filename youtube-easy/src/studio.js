@@ -492,7 +492,16 @@ export class StudioAdapter {
   async readVideo(videoId) {
     await this.openVideo(videoId);
     const state = await this.readEditState();
-    return { videoId, ...state, studioUrl: `https://studio.youtube.com/video/${videoId}/edit`, publicUrl: `https://youtu.be/${videoId}` };
+    const processing = await this.client.evaluate(`(() => { /* __youtubeEasyReadProcessingState */
+      const clean=value=>String(value||'').trim().replace(/\s+/g,' ').slice(0,500);
+      const visible=el=>{if(!el)return false;const r=el.getBoundingClientRect();const s=getComputedStyle(el);return r.width>0&&r.height>0&&s.display!=='none'&&s.visibility!=='hidden'};
+      const leaves=Array.from(document.querySelectorAll('ytcp-video-upload-progress,ytcp-video-checks-status,[class*="progress" i],[class*="check" i],[aria-label*="processing" i],[aria-label*="checks" i]')).filter(visible);
+      const values=leaves.map(el=>clean(el.getAttribute('aria-label')||el.textContent)).filter(Boolean);
+      const upload=values.filter(value=>/upload|process|draft|complete|failed/i.test(value));
+      const checks=values.filter(value=>/check|copyright|restriction/i.test(value));
+      return {uploadStatus:upload.length===1?upload[0]:null,checksStatus:checks.length===1?checks[0]:null};
+    })()`);
+    return { videoId, ...state, ...processing, studioUrl: `https://studio.youtube.com/video/${videoId}/edit`, publicUrl: `https://youtu.be/${videoId}` };
   }
 
   async deleteVideo(videoId, confirmTitle) {

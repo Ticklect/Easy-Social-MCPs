@@ -1,8 +1,20 @@
 import readline from "node:readline";
 import { pathToFileURL } from "node:url";
 import { TOOL_DEFINITIONS } from "./catalog.js";
+import { getDefaultBrowser, withYouTubePage } from "./browser.js";
+import { createReadHandlers } from "./reads.js";
+import { createWriteHandlers } from "./writes.js";
 
 const VERSION = "0.1.0";
+
+export function createDefaultHandlers({ browser = getDefaultBrowser() } = {}) {
+  const stateDir = browser.stateDir;
+  const withBrowser = (fn, options = {}) => withYouTubePage(fn, { ...options, browser });
+  return {
+    ...createReadHandlers({ stateDir, browser, withPage: withBrowser }),
+    ...createWriteHandlers({ stateDir, withPage: withBrowser }),
+  };
+}
 
 function resultText(value, isError = false) {
   const text = typeof value === "string" ? value : JSON.stringify(value, null, 2);
@@ -64,4 +76,4 @@ export function runServer({ handlers = {}, input = process.stdin, output = proce
 }
 
 const isEntry = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (isEntry) runServer();
+if (isEntry) runServer({ handlers: createDefaultHandlers() });

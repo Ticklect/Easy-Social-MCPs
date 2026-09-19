@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createDefaultHandlers } from "../src/server.js";
+import { TOOL_NAMES } from "../src/catalog.js";
 
 const entry = fileURLToPath(new URL("../src/server.js", import.meta.url));
 
@@ -45,4 +47,15 @@ test("MCP initialize and tools/list expose all required YouTube Easy tools", asy
     "set_thumbnail", "update_video", "upload_short", "upload_video", "youtube_forget_session",
     "youtube_login", "youtube_status",
   ]);
+});
+
+test("default runtime wires every declared tool without starting the browser", () => {
+  const handlers = createDefaultHandlers({
+    browser: {
+      stateDir: "C:/youtube-easy-test-state",
+      profileDir: "C:/youtube-easy-test-state/browser-profile",
+    },
+  });
+  assert.deepEqual(Object.keys(handlers).sort(), [...TOOL_NAMES].sort());
+  for (const name of TOOL_NAMES) assert.equal(typeof handlers[name], "function", name);
 });
