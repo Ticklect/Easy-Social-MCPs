@@ -1,0 +1,50 @@
+name: Test Reddit Easy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "dist/**"
+      - "test/**"
+      - "package.json"
+      - "package-lock.json"
+      - "manifest.json"
+      - ".github/workflows/test-reddit-easy.yml"
+  pull_request:
+    paths:
+      - "src/**"
+      - "dist/**"
+      - "test/**"
+      - "package.json"
+      - "package-lock.json"
+      - "manifest.json"
+      - ".github/workflows/test-reddit-easy.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - name: Verify source and dist coordination logic match
+        run: |
+          cmp src/index.js dist/index.js
+          cmp src/coordination.js dist/coordination.js
+      - name: Verify manifest
+        run: |
+          node - <<'NODE'
+          const fs=require("fs");
+          const m=JSON.parse(fs.readFileSync("manifest.json","utf8"));
+          if(m.version!=="0.3.1") throw new Error("manifest version mismatch");
+          if(!Array.isArray(m.tools)||m.tools.length!==22) throw new Error("tool count mismatch");
+          NODE
