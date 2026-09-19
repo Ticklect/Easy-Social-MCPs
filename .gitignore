@@ -1,0 +1,8 @@
+# Never commit browser session data
+browser-profile/
+**/browser-profile/
+
+# Local runtime data
+.DS_Store
+Thumbs.db
+*.log
