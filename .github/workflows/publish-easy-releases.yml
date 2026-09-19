@@ -1,4 +1,5 @@
 name: Publish Easy releases
+# Publish both current MCPB releases.
 
 on:
   push:
