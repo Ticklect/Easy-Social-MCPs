@@ -3,8 +3,9 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
+import { coordinatedWrite, formatWriteOutcome, KnownWriteFailure, withLease } from "./coordination.js";
 
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
 const MAX_STDIO_BUFFER = 2 * 1024 * 1024;
@@ -39,9 +40,12 @@ function profileHasData(baseDir) {
 
 // v0.1.x stored its dedicated browser profile under APPDATA on Windows.
 // Reuse that profile when it exists so upgrades do not unnecessarily log users out.
-const appDir = legacyAppDir && profileHasData(legacyAppDir) && !profileHasData(defaultAppDir)
+const explicitAppDir = process.env.REDDIT_EASY_STATE_DIR
+  ? path.resolve(process.env.REDDIT_EASY_STATE_DIR)
+  : null;
+const appDir = explicitAppDir || (legacyAppDir && profileHasData(legacyAppDir) && !profileHasData(defaultAppDir)
   ? legacyAppDir
-  : defaultAppDir;
+  : defaultAppDir);
 const profileDir = path.join(appDir, "browser-profile");
 const devToolsPortFile = path.join(profileDir, "DevToolsActivePort");
 
@@ -346,16 +350,29 @@ async function navigate(cdp, url) {
   throw new Error("Timed out loading Reddit in the browser.");
 }
 
+async function withProfileLease(fn) {
+  return await withLease({
+    root: appDir,
+    namespace: "profile",
+    key: "browser-profile",
+    leaseMs: 45_000,
+    waitMs: 120_000,
+    metadata: { profileDir },
+  }, fn);
+}
+
 async function withRedditPage(fn) {
-  const cdp = await getPageClient();
-  try {
-    const href = await evaluate(cdp, "location.href");
-    try { parseRedditHttpsUrl(href); }
-    catch { await navigate(cdp, "https://www.reddit.com/"); }
-    return await fn(cdp);
-  } finally {
-    cdp.close();
-  }
+  return await withProfileLease(async () => {
+    const cdp = await getPageClient();
+    try {
+      const href = await evaluate(cdp, "location.href");
+      try { parseRedditHttpsUrl(href); }
+      catch { await navigate(cdp, "https://www.reddit.com/"); }
+      return await fn(cdp);
+    } finally {
+      cdp.close();
+    }
+  });
 }
 
 async function redditFetch(cdp, pathOrUrl, options = {}) {
@@ -392,11 +409,13 @@ async function getSession(cdp) {
 
 async function openRedditUrl(url) {
   const safe = parseRedditHttpsUrl(url).href;
-  const port = await startBrowser();
-  await createPage(port, safe);
+  return await withProfileLease(async () => {
+    const port = await startBrowser();
+    await createPage(port, safe);
+  });
 }
 
-async function closeDedicatedBrowser() {
+async function closeDedicatedBrowserUnlocked() {
   const port = await findRunningPort();
   if (!port) return;
   const info = await fetchJson(`http://127.0.0.1:${port}/json/version`);
@@ -414,48 +433,133 @@ async function closeDedicatedBrowser() {
   }
 }
 
-const recentWrites = new Map();
-const pendingWrites = new Set();
-let lastWriteAt = 0;
-let writeGate = Promise.resolve();
+async function closeDedicatedBrowser() {
+  return await withProfileLease(closeDedicatedBrowserUnlocked);
+}
 
-function cleanupRecentWrites(now = Date.now()) {
-  for (const [key, timestamp] of recentWrites) {
-    if (now - timestamp > DUPLICATE_WINDOW_MS) recentWrites.delete(key);
+function writeFingerprint(type, intent) {
+  return crypto.createHash("sha256").update(type + "\n" + JSON.stringify(intent)).digest("hex");
+}
+
+function redditPermalink(value) {
+  if (!value) return undefined;
+  try {
+    const parsed = parseRedditHttpsUrl(value);
+    return parsed.href;
+  } catch {
+    return undefined;
   }
 }
 
-async function withWriteGuard(fingerprint, operation) {
-  let release;
-  const previous = writeGate;
-  writeGate = new Promise((resolve) => { release = resolve; });
-  await previous;
+function recentListingProvesCoverage(children, startedAt) {
+  if (!Array.isArray(children)) return false;
+  if (children.length < 100) return true;
+  const oldest = children
+    .map((child) => Number(child?.data?.created_utc || 0))
+    .filter((n) => n > 0)
+    .sort((a, b) => a - b)[0];
+  return Boolean(oldest && oldest <= (Number(startedAt || 0) / 1000) - 5);
+}
 
-  try {
-    const now = Date.now();
-    cleanupRecentWrites(now);
-    const old = recentWrites.get(fingerprint);
-    if (old && now - old < DUPLICATE_WINDOW_MS) {
-      throw new Error("Duplicate-protection blocked an identical successful Reddit write within 10 minutes.");
-    }
-    if (pendingWrites.has(fingerprint)) {
-      throw new Error("Duplicate-protection blocked an identical Reddit write that is already in progress.");
-    }
-    const since = now - lastWriteAt;
-    if (since < WRITE_GAP_MS) await sleep(WRITE_GAP_MS - since);
-    lastWriteAt = Date.now();
-    pendingWrites.add(fingerprint);
-  } finally {
-    release();
+async function reconcileCreatePost(cdp, record) {
+  const intent = record?.intent || {};
+  const account = record?.account;
+  if (!account) return { status: "unknown" };
+  const resp = await redditFetch(cdp, `/user/${encodeURIComponent(account)}/submitted.json?raw_json=1&sort=new&limit=100`);
+  const children = resp?.data?.data?.children;
+  if (!resp?.ok || !Array.isArray(children)) return { status: "unknown" };
+  const wantedSubreddit = String(intent.subreddit || "").toLowerCase();
+  const found = children.find((child) => {
+    const d = child?.data || {};
+    if (String(d.subreddit || "").toLowerCase() !== wantedSubreddit) return false;
+    if (String(d.title || "") !== String(intent.title || "")) return false;
+    if (intent.kind === "link") return String(d.url || "") === String(intent.url || "");
+    return String(d.selftext || "") === String(intent.text || "");
+  });
+  if (found) {
+    const d = found.data || {};
+    const fullname = d.name || (d.id ? `t3_${d.id}` : undefined);
+    const permalink = d.permalink ? `https://www.reddit.com${d.permalink}` : redditPermalink(d.url);
+    return {
+      status: "found",
+      result: {
+        message: permalink ? `Post already exists: ${permalink}` : "Post already exists on Reddit.",
+        fullname,
+        permalink,
+      },
+    };
   }
+  return recentListingProvesCoverage(children, record.startedAt) ? { status: "not_found" } : { status: "unknown" };
+}
 
-  try {
-    const result = await operation();
-    recentWrites.set(fingerprint, Date.now());
-    return result;
-  } finally {
-    pendingWrites.delete(fingerprint);
+async function reconcileReply(cdp, record) {
+  const intent = record?.intent || {};
+  const account = record?.account;
+  if (!account) return { status: "unknown" };
+  const resp = await redditFetch(cdp, `/user/${encodeURIComponent(account)}/comments.json?raw_json=1&sort=new&limit=100`);
+  const children = resp?.data?.data?.children;
+  if (!resp?.ok || !Array.isArray(children)) return { status: "unknown" };
+  const found = children.find((child) => {
+    const d = child?.data || {};
+    return String(d.body || "") === String(intent.text || "")
+      && String(d.parent_id || "") === String(intent.parentId || "");
+  });
+  if (found) {
+    const d = found.data || {};
+    const fullname = d.name || (d.id ? `t1_${d.id}` : undefined);
+    const permalink = d.permalink ? `https://www.reddit.com${d.permalink}` : undefined;
+    return {
+      status: "found",
+      result: {
+        message: permalink ? `Reply already exists: ${permalink}` : `Reply already exists: ${fullname || "Reddit comment"}`,
+        fullname,
+        permalink,
+      },
+    };
   }
+  return recentListingProvesCoverage(children, record.startedAt) ? { status: "not_found" } : { status: "unknown" };
+}
+
+async function redditInfo(cdp, id) {
+  const resp = await redditFetch(cdp, `/api/info.json?raw_json=1&id=${encodeURIComponent(id)}`);
+  if (!resp?.ok) return { ok: false, item: null };
+  const child = resp?.data?.data?.children?.[0]?.data || null;
+  return { ok: true, item: child };
+}
+
+async function reconcileEdit(cdp, record) {
+  const intent = record?.intent || {};
+  const info = await redditInfo(cdp, intent.id);
+  if (!info.ok || !info.item) return { status: "unknown" };
+  const actual = String(info.item.body ?? info.item.selftext ?? "");
+  if (actual === String(intent.text || "")) {
+    const permalink = info.item.permalink ? `https://www.reddit.com${info.item.permalink}` : undefined;
+    return { status: "found", result: { message: `Edit already applied to ${intent.id}.`, fullname: intent.id, permalink } };
+  }
+  return { status: "not_found" };
+}
+
+async function reconcileDelete(cdp, record) {
+  const intent = record?.intent || {};
+  const info = await redditInfo(cdp, intent.id);
+  if (!info.ok) return { status: "unknown" };
+  if (!info.item) {
+    return { status: "found", result: { message: `Delete already applied to ${intent.id}.`, fullname: intent.id } };
+  }
+  const author = String(info.item.author || "");
+  const body = String(info.item.body ?? info.item.selftext ?? "");
+  if (author === "[deleted]" || body === "[deleted]") {
+    return { status: "found", result: { message: `Delete already applied to ${intent.id}.`, fullname: intent.id } };
+  }
+  return { status: "not_found" };
+}
+
+function requireKnownWriteResponse(resp, label) {
+  if (resp?.ok) return;
+  if (Number(resp?.status || 0) > 0) {
+    throw new KnownWriteFailure(`${label} (HTTP ${resp.status}).`);
+  }
+  throw new Error(`${label}; the browser lost the response after the request may have been sent.`);
 }
 
 function cleanSubreddit(value) {
