@@ -94,18 +94,17 @@ See [SECURITY.md](./SECURITY.md) for the remaining local-session caveat and repo
 - A Reddit account
 - An MCPB-compatible host such as Chat On Steroids
 
-## Files
+## Downloads and source
 
-- `reddit-easy.mcpb` — ready-to-import plugin bundle
-- `src/index.js` — source
-- `dist/index.js` — packaged MCP entry point
-- `manifest.json` — MCPB manifest
-- `SECURITY.md` — security notes
-- `reddit-easy.mcpb.sha256` — bundle checksum
+- [`reddit-easy.mcpb`](./reddit-easy.mcpb) — ready-to-import v0.2.1 plugin bundle
+- [`reddit-easy-v0.2.1-source.zip`](./reddit-easy-v0.2.1-source.zip) — full source archive
+- [`manifest.json`](./manifest.json) — MCPB manifest
+- [`SECURITY.md`](./SECURITY.md) — security notes
+- [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256) — bundle checksum
 
 ## Verify the download
 
-The release bundle has a SHA-256 checksum in [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256).
+The bundle SHA-256 is published in [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256).
 
 On PowerShell:
 
@@ -114,6 +113,8 @@ Get-FileHash .\reddit-easy.mcpb -Algorithm SHA256
 ```
 
 ## Development
+
+Download and extract [`reddit-easy-v0.2.1-source.zip`](./reddit-easy-v0.2.1-source.zip), then:
 
 ```bash
 npm install
