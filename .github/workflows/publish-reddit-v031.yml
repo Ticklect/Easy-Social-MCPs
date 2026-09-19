@@ -1,0 +1,89 @@
+name: Publish Reddit Easy v0.3.1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/publish-reddit-v031.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Verify source
+        run: |
+          set -euo pipefail
+          npm ci
+          npm run check
+          npm test
+          cmp src/index.js dist/index.js
+          cmp src/coordination.js dist/coordination.js
+
+      - name: Package v0.3.1
+        run: |
+          set -euo pipefail
+          rm -f reddit-easy-v0.3.1.mcpb reddit-easy-v0.3.1-source.zip reddit-easy-v0.3.1.mcpb.sha256
+          zip -X -q reddit-easy-v0.3.1.mcpb             manifest.json package.json             dist/index.js dist/coordination.js             README.md SECURITY.md LICENSE
+          zip -X -q -r reddit-easy-v0.3.1-source.zip             manifest.json package.json package-lock.json             src dist test README.md SECURITY.md LICENSE .gitignore
+          sha256sum reddit-easy-v0.3.1.mcpb > reddit-easy-v0.3.1.mcpb.sha256
+          cp reddit-easy-v0.3.1.mcpb reddit-easy.mcpb
+          printf '%s  reddit-easy.mcpb\n' "$(sha256sum reddit-easy.mcpb | awk '{print $1}')" > reddit-easy.mcpb.sha256
+
+          rm -rf /tmp/reddit-easy-smoke
+          mkdir /tmp/reddit-easy-smoke
+          unzip -q reddit-easy-v0.3.1.mcpb -d /tmp/reddit-easy-smoke
+          node --check /tmp/reddit-easy-smoke/dist/index.js
+          node --check /tmp/reddit-easy-smoke/dist/coordination.js
+          node - <<'NODE'
+          const fs=require("fs");
+          const m=JSON.parse(fs.readFileSync("/tmp/reddit-easy-smoke/manifest.json","utf8"));
+          if(m.version!=="0.3.1") throw new Error("wrong packaged version");
+          if(m.tools.length!==22) throw new Error("wrong tool count");
+          NODE
+
+      - name: Commit current artifacts
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reddit-easy.mcpb reddit-easy.mcpb.sha256             reddit-easy-v0.3.1.mcpb reddit-easy-v0.3.1.mcpb.sha256             reddit-easy-v0.3.1-source.zip
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish Reddit Easy v0.3.1 artifacts"
+            git push origin HEAD:main
+          fi
+
+      - name: Publish release
+        run: |
+          set -euo pipefail
+          tag="reddit-easy-v0.3.1"
+          target="$(git rev-parse HEAD)"
+          cat > /tmp/notes.md <<'EOF'
+          Reddit Easy v0.3.1 fixes cross-process duplicate-write races reported by Reddit users.
+
+          Writes now use filesystem-backed account + fingerprint leases shared by separate Node/MCP processes. The lease is acquired before duplicate checking and held through submission and reconciliation. Successful fullname/permalink results are persisted for reuse.
+
+          If a process dies after a Reddit request may have been sent, Reddit Easy reconciles the intended post/comment before retrying. Proven existing writes are returned, proven misses can retry safely, and indeterminate outcomes return an explicit UNCERTAIN result instead of risking a duplicate.
+
+          The dedicated browser profile is also coordinated across processes. Regression tests spawn independent Node processes to race the same write, verify stale-lock recovery, persisted-result reuse, crash reconciliation, uncertain outcomes, and profile serialization.
+
+          Existing 10-minute duplicate protection, write spacing, URL validation, loopback-only CDP checks, and credential handling remain in place.
+          EOF
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" reddit-easy-v0.3.1.mcpb reddit-easy-v0.3.1-source.zip reddit-easy-v0.3.1.mcpb.sha256 --clobber
+          else
+            gh release create "$tag"               --target "$target"               --title "Reddit Easy v0.3.1"               --notes-file /tmp/notes.md               reddit-easy-v0.3.1.mcpb               reddit-easy-v0.3.1-source.zip               reddit-easy-v0.3.1.mcpb.sha256
+          fi
