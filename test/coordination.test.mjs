@@ -4,8 +4,9 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
-const worker = new URL("./coordination-worker.mjs", import.meta.url);
+const worker = fileURLToPath(new URL("./coordination-worker.mjs", import.meta.url));
 
 function tempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "reddit-easy-coordination-"));
@@ -13,7 +14,7 @@ function tempRoot() {
 
 function run(mode, root, externalFile, { allowFailure = false } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [worker.pathname, mode, root, externalFile], {
+    const child = spawn(process.execPath, [worker, mode, root, externalFile], {
       stdio: ["ignore", "pipe", "pipe"],
     });
     let stdout = "";
@@ -56,7 +57,7 @@ test("persisted success is reused by a later independent process", async () => {
 test("stale lease is recovered after the owning process dies", async () => {
   const root = tempRoot();
   const external = path.join(root, "external.log");
-  const child = spawn(process.execPath, [worker.pathname, "hold-lock", root, external], { stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn(process.execPath, [worker, "hold-lock", root, external], { stdio: ["ignore", "pipe", "pipe"] });
   await new Promise((resolve, reject) => {
     let buf = "";
     child.stdout.on("data", (d) => {
