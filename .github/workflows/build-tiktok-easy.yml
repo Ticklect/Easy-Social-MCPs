@@ -4,7 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - "tiktok-easy/**"
+      - "tiktok-easy/README.md"
+      - "tiktok-easy/SECURITY.md"
+      - "tiktok-easy/LICENSE"
+      - "tiktok-easy/THIRD_PARTY_LICENSES.md"
+      - "tiktok-easy/manifest.json"
+      - "tiktok-easy/patch-upstream.mjs"
       - ".github/workflows/build-tiktok-easy.yml"
   workflow_dispatch:
 
@@ -102,7 +107,15 @@ jobs:
           set -euo pipefail
           tag="tiktok-easy-v0.1.0"
           target="$(git rev-parse HEAD)"
-          printf '%s\n'             'TikTok Easy v0.1.0 packages the MIT-licensed 0xArtex/tiktok-mcp browser-session runtime into a ready-to-import MCPB.'             ''             'Import → run tiktok_login → scan the TikTok QR → done.'             ''             'No TikTok developer app, API key, client secret, npm install, TypeScript build, or manual MCP configuration is required.'             ''             'This is an unofficial browser-session integration, not TikTok'''s official API. Browser automation carries platform/account risk and may break when TikTok changes its web interface.'             > /tmp/tiktok-easy-notes.md
+          cat > /tmp/tiktok-easy-notes.md <<'EOF'
+          TikTok Easy v0.1.0 packages the MIT-licensed 0xArtex/tiktok-mcp browser-session runtime into a ready-to-import MCPB.
+
+          Import → run tiktok_login → scan the TikTok QR → done.
+
+          No TikTok developer app, API key, client secret, npm install, TypeScript build, or manual MCP configuration is required.
+
+          This is an unofficial browser-session integration, not the official TikTok API. Browser automation carries platform/account risk and may break when TikTok changes its web interface.
+          EOF
           if gh release view "$tag" >/dev/null 2>&1; then
             gh release upload "$tag" tiktok-easy/tiktok-easy-v0.1.0.mcpb tiktok-easy/tiktok-easy-v0.1.0-source.zip tiktok-easy/tiktok-easy-v0.1.0.mcpb.sha256 --clobber
           else
