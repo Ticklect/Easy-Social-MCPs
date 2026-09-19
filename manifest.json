@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "reddit-easy",
   "display_name": "Reddit Easy",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Read and post on Reddit with one-time browser login. No Reddit API keys or password fields.",
   "long_description": "Reddit Easy uses a dedicated local Helium/Chrome/Edge/Chromium profile. Import it, run reddit_login once, and sign in directly on reddit.com. It can read the personalized home feed, subreddit feeds, search, posts, nested comments, inbox activity, notifications, saved items, users, r/popular and r/all with pagination, while retaining posting, replies, edits, deletes, rules and flair tools. It has no third-party runtime dependencies, keeps browser debugging on loopback with an unpredictable Chrome-assigned port, validates Reddit origins, treats Reddit content as untrusted, rate-limits writes, blocks recent duplicate writes, and can erase its local browser session on request.",
   "author": {
