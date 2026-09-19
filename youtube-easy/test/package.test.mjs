@@ -66,6 +66,10 @@ test("build creates a self-contained MCPB, source ZIP, and matching SHA-256", as
   }
   assert.equal(JSON.parse(entries.get("manifest.json")).version, "0.1.0");
   assert.equal(JSON.parse(entries.get("manifest.json")).tools.length, 17);
+  const sourceEntries = zipEntries(source);
+  assert.equal(sourceEntries.has(".github/workflows/build-youtube-easy.yml"), true);
+  assert.equal(sourceEntries.has("docs/youtube-easy-design.md"), true);
+  assert.equal(sourceEntries.has("docs/youtube-easy-plan.md"), true);
 
   const actualHash = crypto.createHash("sha256").update(fs.readFileSync(mcpb)).digest("hex");
   assert.match(fs.readFileSync(checksum, "utf8"), new RegExp(`^${actualHash}  youtube-easy-v0\\.1\\.0\\.mcpb\\s*$`));

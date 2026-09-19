@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const repositoryRoot = path.dirname(root);
 const version = "0.1.0";
 const artifactBase = `youtube-easy-v${version}`;
 
@@ -87,6 +88,10 @@ function file(name, archiveName = name) {
   return { name: archiveName, data: fs.readFileSync(path.join(root, name)) };
 }
 
+function repositoryFile(name, archiveName = name) {
+  return { name: archiveName, data: fs.readFileSync(path.join(repositoryRoot, name)) };
+}
+
 const outIndex = process.argv.indexOf("--out");
 const outDir = path.resolve(outIndex >= 0 ? process.argv[outIndex + 1] : root);
 if (outIndex >= 0 && !process.argv[outIndex + 1]) throw new Error("--out requires a directory.");
@@ -101,6 +106,9 @@ const sourceEntries = [
   file("manifest.json"), file("package.json"), file("README.md"), file("SECURITY.md"),
   file("LICENSE"), file("THIRD_PARTY_LICENSES.md"), ...collect(path.join(root, "src"), "src"),
   ...collect(path.join(root, "test"), "test"), ...collect(path.join(root, "scripts"), "scripts"),
+  repositoryFile(".github/workflows/build-youtube-easy.yml"),
+  repositoryFile("docs/superpowers/specs/2026-09-19-youtube-easy-design.md", "docs/youtube-easy-design.md"),
+  repositoryFile("docs/superpowers/plans/2026-09-19-youtube-easy.md", "docs/youtube-easy-plan.md"),
 ];
 
 const mcpbPath = path.join(outDir, `${artifactBase}.mcpb`);
