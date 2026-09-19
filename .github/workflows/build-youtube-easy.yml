@@ -1,0 +1,75 @@
+name: Build YouTube Easy v0.1.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "youtube-easy/**"
+      - ".github/workflows/build-youtube-easy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-test-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Syntax and offline tests
+        run: |
+          set -euo pipefail
+          npm --prefix youtube-easy run check
+          npm --prefix youtube-easy test
+
+      - name: Build deterministic artifacts
+        run: npm --prefix youtube-easy run build
+
+      - name: Verify packaged MCP server
+        run: node --test youtube-easy/test/package.test.mjs
+
+      - name: Commit artifacts when needed
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add youtube-easy/youtube-easy-v0.1.0.mcpb youtube-easy/youtube-easy-v0.1.0-source.zip youtube-easy/youtube-easy-v0.1.0.mcpb.sha256
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish YouTube Easy v0.1.0 artifacts"
+            git push origin HEAD:main
+          fi
+
+      - name: Publish GitHub Release
+        run: |
+          set -euo pipefail
+          tag="youtube-easy-v0.1.0"
+          target="$(git rev-parse HEAD)"
+          cat > "$RUNNER_TEMP/youtube-easy-notes.md" <<'EOF'
+          YouTube Easy v0.1.0 is a ready-to-import, dependency-free Node 22 MCPB for YouTube and YouTube Studio browser automation.
+
+          Download → import → run `youtube_login` → sign in normally in Google/YouTube → run `youtube_status`.
+
+          No YouTube Data API, Google Cloud/OAuth client setup, API keys, copied cookies, session tokens, `.env` credentials, or runtime npm install is used. Writes use cross-process leases, persisted duplicate protection, crash reconciliation, and fail-closed pre-commit verification.
+
+          This release passed the offline browser-detection, URL validation, simulated Studio DOM, independent-process race, stale-lock, result-reuse, uncertain-reconciliation, MCP smoke, and package tests. No real Google login or live YouTube upload was performed for v0.1.0. YouTube can change its web UI or anti-automation behavior without notice.
+          EOF
+          assets=(
+            youtube-easy/youtube-easy-v0.1.0.mcpb
+            youtube-easy/youtube-easy-v0.1.0-source.zip
+            youtube-easy/youtube-easy-v0.1.0.mcpb.sha256
+          )
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" "${assets[@]}" --clobber
+          else
+            gh release create "$tag" --target "$target" --title "YouTube Easy v0.1.0" --notes-file "$RUNNER_TEMP/youtube-easy-notes.md" "${assets[@]}"
+          fi
