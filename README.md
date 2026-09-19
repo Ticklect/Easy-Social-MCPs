@@ -23,7 +23,7 @@ I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same
 
 No Reddit developer portal. No client ID. No client secret. No Reddit password field in the plugin.
 
-## What v0.3.0 can read
+## What v0.3.x can read
 
 - Your personalized home feed
 - Hot / New / Top / Rising / Controversial posts in any subreddit
@@ -62,6 +62,14 @@ Show me the newest 50 posts from r/opensource, then keep going with the next pag
 ```text
 Show me my mentions and unread inbox items.
 ```
+
+## Cross-process write safety in v0.3.1
+
+Reddit Easy now coordinates writes across completely separate MCP/Node processes that share the same local Reddit Easy state and browser profile. The first process acquires an account + request fingerprint lease before checking duplicates and holds it through submission and reconciliation. Successful fullname/permalink results are persisted, so a second process can reuse the prior result without sending another Reddit request.
+
+If a process crashes after a write may have been sent, Reddit Easy reconciles the intended post/comment against Reddit before doing anything else. It retries only when it can establish that the original write did not happen; otherwise it returns an explicit **UNCERTAIN** result rather than risk creating a duplicate.
+
+The dedicated browser profile has its own cross-process lease as well, preventing two MCP processes from silently starting/driving/erasing the same profile at once.
 
 ## Writing tools
 
@@ -107,7 +115,7 @@ See [SECURITY.md](./SECURITY.md).
 ## Downloads and source
 
 - [`reddit-easy.mcpb`](./reddit-easy.mcpb) — current ready-to-import bundle
-- [Reddit Easy v0.3.0 release](../../releases/tag/reddit-easy-v0.3.0) — versioned MCPB, source ZIP and checksum
+- [Reddit Easy v0.3.1 release](../../releases/tag/reddit-easy-v0.3.1) — versioned MCPB, source ZIP and checksum
 - [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256) — checksum for the current bundle
 - [`manifest.json`](./manifest.json) — MCPB manifest
 
