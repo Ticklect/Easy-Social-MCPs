@@ -1,6 +1,6 @@
 {
   "name": "reddit-easy-mcp",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node dist/index.js",
-    "check": "node --check dist/index.js"
+    "check": "node --check dist/index.js && node --check dist/coordination.js",
+    "test": "node --test test/*.test.mjs"
   }
 }
