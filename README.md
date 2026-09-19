@@ -4,6 +4,18 @@
 
 Reddit Easy uses a dedicated local Chromium browser profile. Sign in to Reddit normally once and the MCP reuses that local session.
 
+## TikTok Easy
+
+I also added **[TikTok Easy](./tiktok-easy/README.md)** for TikTok. It packages the browser-session TikTok MCP into a ready-to-import bundle with no TikTok developer app or API keys.
+
+**Import → run `tiktok_login` → scan the TikTok QR → done.**
+
+It supports posting and native scheduling, likes, follows, deletion, profile/avatar changes, analytics, saved performance history, and hook analysis.
+
+[Download TikTok Easy v0.1.0](../../releases/tag/tiktok-easy-v0.1.0)
+
+> TikTok Easy is an unofficial browser-session integration and carries platform/account risk. Read its [security notes and attribution](./tiktok-easy/README.md) before using it.
+
 ## Also available: X Easy
 
 I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same basic idea: import the MCPB, sign in once in a dedicated browser, then read your timeline, search, mentions, notifications and bookmarks, or explicitly post, reply, like, repost and bookmark without setting up X API credentials.
