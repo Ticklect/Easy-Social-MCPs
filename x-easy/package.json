@@ -1,0 +1,14 @@
+{
+  "name": "x-easy-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node dist/index.js",
+    "check": "node --check dist/index.js"
+  }
+}
