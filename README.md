@@ -4,6 +4,14 @@
 
 Reddit Easy uses a dedicated local Chromium browser profile. You sign in to Reddit normally once, and the MCP reuses that local session for Reddit actions.
 
+## Also available: X Easy
+
+I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same idea: import the MCPB, sign in once in a dedicated browser, then read your timeline, search, mentions, notifications and bookmarks, or explicitly post, reply, like, repost and bookmark without setting up X API credentials.
+
+[Download X Easy v0.1.0](./x-easy/x-easy-v0.1.0.mcpb)
+
+> X Easy is an unofficial browser-session integration and carries platform/account risk. Read its [warning and attribution](./x-easy/README.md) before using it.
+
 ## Why this exists
 
 Most Reddit integrations make you create an OAuth app, find a client ID and secret, configure redirect URLs, and paste credentials into environment variables.
