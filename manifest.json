@@ -2,9 +2,9 @@
   "manifest_version": "0.2",
   "name": "reddit-easy",
   "display_name": "Reddit Easy",
-  "version": "0.2.1",
-  "description": "Post to Reddit with one-time browser login. No Reddit API keys or password fields.",
-  "long_description": "Reddit Easy uses a dedicated local Helium/Chrome/Edge/Chromium profile. Import it, run reddit_login once, and sign in directly on reddit.com. It reuses that local browser session for posts, comments, edits, deletes, rules, and flair lookups. The plugin has no third-party runtime dependencies, binds browser debugging to loopback only, uses an unpredictable Chrome-assigned debug port, validates Reddit origins, rate-limits writes, blocks recent duplicates, and can erase its local browser session on request.",
+  "version": "0.3.0",
+  "description": "Read and post on Reddit with one-time browser login. No Reddit API keys or password fields.",
+  "long_description": "Reddit Easy uses a dedicated local Helium/Chrome/Edge/Chromium profile. Import it, run reddit_login once, and sign in directly on reddit.com. It can read the personalized home feed, subreddit feeds, search, posts, nested comments, inbox activity, notifications, saved items, users, r/popular and r/all with pagination, while retaining posting, replies, edits, deletes, rules and flair tools. It has no third-party runtime dependencies, keeps browser debugging on loopback with an unpredictable Chrome-assigned port, validates Reddit origins, treats Reddit content as untrusted, rate-limits writes, blocks recent duplicate writes, and can erase its local browser session on request.",
   "author": {
     "name": "Reddit Easy contributors"
   },
@@ -13,7 +13,9 @@
     "entry_point": "dist/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/dist/index.js"]
+      "args": [
+        "${__dirname}/dist/index.js"
+      ]
     }
   },
   "tools": [
@@ -21,6 +23,18 @@
     { "name": "reddit_status", "description": "Check Reddit login status" },
     { "name": "get_subreddit_rules", "description": "Read subreddit rules" },
     { "name": "get_post_flairs", "description": "List post flairs" },
+    { "name": "get_home_feed", "description": "Read the personalized Reddit home feed" },
+    { "name": "get_subreddit_feed", "description": "Browse a subreddit feed" },
+    { "name": "search_reddit", "description": "Search Reddit posts" },
+    { "name": "read_post", "description": "Read full Reddit post details" },
+    { "name": "get_comments", "description": "Read nested Reddit comments" },
+    { "name": "get_inbox", "description": "Read inbox, replies, mentions and messages" },
+    { "name": "get_notifications", "description": "Read Reddit account notifications" },
+    { "name": "get_saved", "description": "Read saved Reddit posts and comments" },
+    { "name": "get_user_profile", "description": "Read a Reddit user profile" },
+    { "name": "get_user_posts", "description": "Read a Reddit user's posts/comments/overview" },
+    { "name": "get_popular", "description": "Browse r/popular" },
+    { "name": "get_all", "description": "Browse r/all" },
     { "name": "create_post", "description": "Publish a text or link post" },
     { "name": "reply_to_post", "description": "Reply to a post or comment" },
     { "name": "edit_reddit_text", "description": "Edit your own post/comment text" },
@@ -28,6 +42,15 @@
     { "name": "open_reddit_url", "description": "Open a Reddit URL for manual review" },
     { "name": "reddit_forget_session", "description": "Erase the plugin's local Reddit browser session" }
   ],
-  "keywords": ["reddit", "mcp", "posting", "browser-login", "social-media", "chat-on-steroids"],
+  "keywords": [
+    "reddit",
+    "mcp",
+    "reader",
+    "search",
+    "posting",
+    "browser-login",
+    "social-media",
+    "chat-on-steroids"
+  ],
   "license": "MIT"
 }
