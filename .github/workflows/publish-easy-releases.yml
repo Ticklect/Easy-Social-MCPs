@@ -1,0 +1,61 @@
+name: Publish Easy releases
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-easy-releases.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Publish Reddit Easy v0.2.1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="reddit-easy-v0.2.1"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag already exists; leaving it unchanged."
+          else
+            cat > /tmp/reddit-easy-notes.md <<'EOF'
+          Reddit Easy makes Reddit MCP setup deliberately simple: import the bundle, sign in once in a dedicated local browser, then use Reddit tools without configuring a Reddit developer app, client ID, client secret, or password field.
+
+          Setup: import `reddit-easy.mcpb` → run `reddit_login` → sign in → run `reddit_status`.
+
+          This release includes the ready-to-import MCPB, source archive, and SHA-256 checksum.
+          EOF
+            gh release create "$tag"               --target 364e037dd67879e579adea560221e820b93fa311               --title "Reddit Easy v0.2.1"               --notes-file /tmp/reddit-easy-notes.md               reddit-easy.mcpb               reddit-easy-v0.2.1-source.zip               reddit-easy.mcpb.sha256
+          fi
+
+      - name: Publish X Easy v0.1.0
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="x-easy-v0.1.0"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag already exists; leaving it unchanged."
+          else
+            cat > /tmp/x-easy-notes.md <<'EOF'
+          X Easy brings the same import → log in → use flow to X/Twitter. It uses a dedicated local browser session and exposes timeline, search, mentions, notifications, bookmarks, posting, replies, likes, reposts and bookmarks through MCP.
+
+          Setup: import `x-easy-v0.1.0.mcpb` → run `x_login` → sign in → run `x_status`.
+
+          Important: this is an unofficial browser-session integration, not the official X API. Browser automation can carry platform/account risk. Do not use it for spam, mass posting, artificial engagement, or bypassing X controls.
+
+          X Easy adapts portions of the MIT-licensed SohrabZ/x-browser-mcp v0.0.9 project; attribution is included in the repository.
+          EOF
+            gh release create "$tag"               --target 5d5634a5d46d3ac5e88c64f7f2e0f6e3b0f1c6be               --title "X Easy v0.1.0"               --notes-file /tmp/x-easy-notes.md               x-easy/x-easy-v0.1.0.mcpb               x-easy/x-easy-v0.1.0.mcpb.sha256
+          fi
