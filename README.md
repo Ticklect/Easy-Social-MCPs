@@ -1,140 +1,130 @@
 # Reddit Easy
 
-**Post to Reddit from an MCP host without making a Reddit developer app, copying API keys, or putting your Reddit password into plugin settings.**
+**Read, search and post on Reddit from an MCP host without making a Reddit developer app, copying API keys, or putting your Reddit password into plugin settings.**
 
-Reddit Easy uses a dedicated local Chromium browser profile. You sign in to Reddit normally once, and the MCP reuses that local session for Reddit actions.
+Reddit Easy uses a dedicated local Chromium browser profile. Sign in to Reddit normally once and the MCP reuses that local session.
 
 ## Also available: X Easy
 
-I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same idea: import the MCPB, sign in once in a dedicated browser, then read your timeline, search, mentions, notifications and bookmarks, or explicitly post, reply, like, repost and bookmark without setting up X API credentials.
+I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same basic idea: import the MCPB, sign in once in a dedicated browser, then read your timeline, search, mentions, notifications and bookmarks, or explicitly post, reply, like, repost and bookmark without setting up X API credentials.
 
 [Download X Easy v0.1.0](./x-easy/x-easy-v0.1.0.mcpb)
 
 > X Easy is an unofficial browser-session integration and carries platform/account risk. Read its [warning and attribution](./x-easy/README.md) before using it.
 
-## Why this exists
+## 30-second setup
 
-Most Reddit integrations make you create an OAuth app, find a client ID and secret, configure redirect URLs, and paste credentials into environment variables.
-
-Reddit Easy is deliberately simpler:
-
-**Import → log in → post.**
+1. Download `reddit-easy.mcpb` or the versioned v0.3.0 bundle from Releases.
+2. Import it into Chat On Steroids or another MCPB-compatible host.
+3. Ask the agent to run `reddit_login`.
+4. Sign in to Reddit in the dedicated browser window.
+5. Run `reddit_status`.
+6. Done.
 
 No Reddit developer portal. No client ID. No client secret. No Reddit password field in the plugin.
 
-## 30-second setup
+## What v0.3.0 can read
 
-1. Download [`reddit-easy.mcpb`](./reddit-easy.mcpb).
-2. In Chat On Steroids, choose **Add a plugin → Import MCPB bundle**.
-3. Import `reddit-easy.mcpb`.
-4. Ask the agent to run `reddit_login`.
-5. Sign in to Reddit in the dedicated browser window that opens.
-6. Run `reddit_status` once to confirm the account.
-7. Done.
+- Your personalized home feed
+- Hot / New / Top / Rising / Controversial posts in any subreddit
+- Reddit-wide or subreddit-scoped search
+- Full post details
+- Nested comment threads with reply depth and parent IDs
+- Inbox activity, unread items, sent messages, replies and username mentions
+- Account notifications, with inbox fallback if Reddit's notification endpoint is unavailable
+- Your saved posts and comments
+- Public user profiles
+- A user's submitted posts, comments or combined overview
+- r/popular
+- r/all
+- Subreddit rules and post flairs
 
-After that, prompts can be as simple as:
+Listing tools return Reddit's `next_after` cursor. Pass that value back as `after` to continue onto the next page instead of being limited to the first batch.
+
+Example prompts:
 
 ```text
-Post this to r/opensource with the Open Source flair: ...
+What is on my Reddit home feed right now?
 ```
 
 ```text
-Check the rules and available flairs for r/programming before posting.
+Search Reddit for people talking about MCP browser automation this week.
 ```
 
 ```text
-Reply to this Reddit post with: ...
+Read this Reddit post and summarize the comment arguments.
 ```
 
-The MCP exposes the Reddit actions directly, so the host does not need to click around Reddit's UI to publish a post.
+```text
+Show me the newest 50 posts from r/opensource, then keep going with the next page.
+```
 
-## What it can do
+```text
+Show me my mentions and unread inbox items.
+```
 
-- Check whether the dedicated Reddit session is logged in
-- Read subreddit rules
-- List post flairs
+## Writing tools
+
+Reddit Easy still supports:
+
 - Create text and link posts
 - Reply to posts and comments
 - Edit your own post/comment text
 - Delete your own posts/comments
-- Open a Reddit URL for manual review
-- Erase the saved Reddit Easy browser session
+
+Write operations remain duplicate-protected and rate-limited. Check subreddit rules/flairs before posting when practical.
 
 ## Supported browsers
 
-Reddit Easy currently detects:
-
-- **Helium**
+- Helium
 - Google Chrome
 - Microsoft Edge
 - Chromium
 
-Helium support includes the common Windows installs under `%LOCALAPPDATA%\imput\Helium\Application\chrome.exe` and `%PROGRAMFILES%\imput\Helium\Application\chrome.exe`.
+Helium support includes common Windows installs under `%LOCALAPPDATA%\imput\Helium\Application\chrome.exe` and `%PROGRAMFILES%\imput\Helium\Application\chrome.exe`.
 
-## Why it does not ask for your Reddit password
+## Authentication
 
-Authentication happens inside the real browser window on `reddit.com`. Reddit Easy stores the resulting session only in its dedicated local browser profile. The MCP configuration itself does not accept your Reddit username, password, client ID, or client secret.
+Authentication happens in the real browser window on `reddit.com`. Reddit Easy stores the resulting session only inside its dedicated local browser profile. The MCP config does not accept your Reddit username, password, client ID, client secret or OAuth token.
 
-Use `reddit_forget_session` if you want the plugin to close the dedicated browser and remove that local profile.
+Use `reddit_forget_session` to close the dedicated browser and erase the local Reddit Easy profile.
 
 ## Security
 
-This is local software with access to an authenticated Reddit session, so it is intentionally narrow:
-
-- Browser debugging is bound to `127.0.0.1` only.
+- Browser debugging binds only to `127.0.0.1`.
 - The browser chooses an unpredictable ephemeral debugging port.
-- Reddit URLs are restricted to HTTPS on `reddit.com` and real Reddit subdomains.
+- Reddit requests are restricted to HTTPS on real `reddit.com` subdomains.
 - Lookalike hosts such as `evilreddit.com` are rejected.
-- Link posts accept only `http://` and `https://` URLs.
-- No third-party runtime packages are required; the MCP uses Node.js built-ins only.
+- There are no third-party runtime packages; the MCP uses Node.js built-ins only.
+- Reddit-returned posts, comments, messages, notifications, rules and flair text are explicitly labeled untrusted.
 - Identical successful writes are blocked for 10 minutes.
 - Concurrent duplicate writes are blocked.
 - Writes are spaced by at least 3.5 seconds.
-- Reddit-returned text is treated as untrusted external content.
-- Cookies, passwords, session tokens, post bodies, and comments are not intentionally logged.
+- Cookies, passwords and session tokens are not intentionally logged.
 
-See [SECURITY.md](./SECURITY.md) for the remaining local-session caveat and reporting guidance.
+See [SECURITY.md](./SECURITY.md).
+
+## Downloads and source
+
+- [`reddit-easy.mcpb`](./reddit-easy.mcpb) — current ready-to-import bundle
+- [Reddit Easy v0.3.0 release](../../releases/tag/reddit-easy-v0.3.0) — versioned MCPB, source ZIP and checksum
+- [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256) — checksum for the current bundle
+- [`manifest.json`](./manifest.json) — MCPB manifest
+
+## Important limitations
+
+Reddit Easy uses Reddit's authenticated web/API surfaces through your local browser session. Reddit can change these at any time. `get_notifications` therefore falls back to inbox activity when Reddit's notification endpoint is unavailable.
+
+Comment pages can contain Reddit `more comments` placeholders. `get_comments` returns the nested comments Reddit supplied in that request and tells you when unloaded `more` blocks were present; it does not silently pretend those omitted comments were fetched.
+
+A home-feed read shows the feed Reddit returns when you call it. It cannot reconstruct exactly what your personalized feed looked like hours earlier unless it was read and saved at that time.
 
 ## Requirements
 
 - Node.js 22+
-- Helium, Chrome, Edge, or Chromium
+- Helium, Chrome, Edge or Chromium
 - A Reddit account
-- An MCPB-compatible host such as Chat On Steroids
-
-## Downloads and source
-
-- [`reddit-easy.mcpb`](./reddit-easy.mcpb) — ready-to-import v0.2.1 plugin bundle
-- [`reddit-easy-v0.2.1-source.zip`](./reddit-easy-v0.2.1-source.zip) — full source archive
-- [`manifest.json`](./manifest.json) — MCPB manifest
-- [`SECURITY.md`](./SECURITY.md) — security notes
-- [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256) — bundle checksum
-
-## Verify the download
-
-The bundle SHA-256 is published in [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256).
-
-On PowerShell:
-
-```powershell
-Get-FileHash .\reddit-easy.mcpb -Algorithm SHA256
-```
-
-## Development
-
-Download and extract [`reddit-easy-v0.2.1-source.zip`](./reddit-easy-v0.2.1-source.zip), then:
-
-```bash
-npm install
-npm run check
-npm start
-```
-
-There are currently no third-party runtime dependencies.
-
-## Important limitation
-
-Reddit Easy uses an authenticated browser session plus Reddit web/API endpoints. Reddit can change those interfaces at any time, so a future Reddit change may require an update.
+- An MCPB-compatible host
 
 ## License
 
