@@ -1,0 +1,16 @@
+{
+  "fileName": "launch.mp4",
+  "fileSize": 1234567,
+  "title": "Launch video",
+  "description": "A carefully verified description.",
+  "madeForKids": false,
+  "visibility": "private",
+  "publishAt": null,
+  "scheduleTimeZone": null,
+  "thumbnailFileName": "launch-thumb.png",
+  "playlist": "Product demos",
+  "tags": ["launch", "demo"],
+  "videoId": "abc123xyz89",
+  "studioUrl": "https://studio.youtube.com/video/abc123xyz89/edit",
+  "publicUrl": "https://youtu.be/abc123xyz89"
+}
