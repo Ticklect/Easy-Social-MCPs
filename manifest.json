@@ -1,0 +1,33 @@
+{
+  "manifest_version": "0.2",
+  "name": "reddit-easy",
+  "display_name": "Reddit Easy",
+  "version": "0.2.1",
+  "description": "Post to Reddit with one-time browser login. No Reddit API keys or password fields.",
+  "long_description": "Reddit Easy uses a dedicated local Helium/Chrome/Edge/Chromium profile. Import it, run reddit_login once, and sign in directly on reddit.com. It reuses that local browser session for posts, comments, edits, deletes, rules, and flair lookups. The plugin has no third-party runtime dependencies, binds browser debugging to loopback only, uses an unpredictable Chrome-assigned debug port, validates Reddit origins, rate-limits writes, blocks recent duplicates, and can erase its local browser session on request.",
+  "author": {
+    "name": "Reddit Easy contributors"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/dist/index.js"]
+    }
+  },
+  "tools": [
+    { "name": "reddit_login", "description": "Open the dedicated Reddit login browser" },
+    { "name": "reddit_status", "description": "Check Reddit login status" },
+    { "name": "get_subreddit_rules", "description": "Read subreddit rules" },
+    { "name": "get_post_flairs", "description": "List post flairs" },
+    { "name": "create_post", "description": "Publish a text or link post" },
+    { "name": "reply_to_post", "description": "Reply to a post or comment" },
+    { "name": "edit_reddit_text", "description": "Edit your own post/comment text" },
+    { "name": "delete_reddit_item", "description": "Delete your own post/comment" },
+    { "name": "open_reddit_url", "description": "Open a Reddit URL for manual review" },
+    { "name": "reddit_forget_session", "description": "Erase the plugin's local Reddit browser session" }
+  ],
+  "keywords": ["reddit", "mcp", "posting", "browser-login", "social-media", "chat-on-steroids"],
+  "license": "MIT"
+}
