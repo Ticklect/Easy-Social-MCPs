@@ -441,7 +441,7 @@ function writeFingerprint(type, intent) {
   return crypto.createHash("sha256").update(type + "\n" + JSON.stringify(intent)).digest("hex");
 }
 
-function redditPermalink(value) {
+function persistedRedditPermalink(value) {
   if (!value) return undefined;
   try {
     const parsed = parseRedditHttpsUrl(value);
@@ -1305,7 +1305,7 @@ const tools = [
             requireKnownWriteResponse(resp, "Reddit rejected the post");
             const data = resp?.data?.json?.data || {};
             const fullname = data.name || (data.id ? `t3_${data.id}` : undefined);
-            const permalink = redditPermalink(data.url) || (data.id ? `https://www.reddit.com/comments/${data.id}` : undefined);
+            const permalink = persistedRedditPermalink(data.url) || (data.id ? `https://www.reddit.com/comments/${data.id}` : undefined);
             return {
               message: permalink ? `Posted successfully to r/${subreddit}: ${permalink}` : `Posted successfully to r/${subreddit}.`,
               fullname, permalink,
