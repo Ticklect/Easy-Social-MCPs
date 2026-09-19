@@ -1,0 +1,186 @@
+name: Build TikTok Easy v0.1.0
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tiktok-easy/**"
+      - ".github/workflows/build-tiktok-easy.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      UPSTREAM_SHA: 99ef0359a55ff64b7d4a913369cca5c7bfd2683b
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Fetch pinned upstream
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/tiktok-upstream
+          git clone --quiet https://github.com/0xArtex/tiktok-mcp.git /tmp/tiktok-upstream
+          cd /tmp/tiktok-upstream
+          git checkout --quiet "$UPSTREAM_SHA"
+          test "$(git rev-parse HEAD)" = "$UPSTREAM_SHA"
+
+      - name: Apply TikTok Easy patches
+        run: |
+          set -euo pipefail
+          cd /tmp/tiktok-upstream
+          node <<'NODE'
+          const fs = require("fs");
+
+          // Add Helium to browser discovery.
+          {
+            const p = "src/runtime/social-runtime.ts";
+            let s = fs.readFileSync(p, "utf8");
+            s = s.replace(
+              'candidates.push(\n      join(programFiles, "Google", "Chrome", "Application", "chrome.exe"),',
+              'candidates.push(\n      join(programFiles, "imput", "Helium", "Application", "chrome.exe"),\n      join(programFiles, "Helium", "Application", "chrome.exe"),\n      join(programFiles, "Google", "Chrome", "Application", "chrome.exe"),'
+            );
+            s = s.replace(
+              'if (local) candidates.push(\n      join(local, "Google", "Chrome", "Application", "chrome.exe"),',
+              'if (local) candidates.push(\n      join(local, "imput", "Helium", "Application", "chrome.exe"),\n      join(local, "Programs", "Helium", "Application", "chrome.exe"),\n      join(local, "Helium", "Application", "chrome.exe"),\n      join(local, "Google", "Chrome", "Application", "chrome.exe"),'
+            );
+            s = s.replace(
+              'candidates.push(\n      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",',
+              'candidates.push(\n      "/Applications/Helium.app/Contents/MacOS/Helium",\n      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",'
+            );
+            s = s.replace(
+              'candidates.push(\n      "/usr/bin/google-chrome",',
+              'candidates.push(\n      "/usr/bin/helium", "/usr/local/bin/helium",\n      "/usr/bin/google-chrome",'
+            );
+            s = s.replaceAll("Chrome/Edge/Brave.", "Helium/Chrome/Edge/Brave.");
+            fs.writeFileSync(p, s);
+          }
+
+          // Add a one-command default-account login alias.
+          {
+            const p = "src/server.ts";
+            let s = fs.readFileSync(p, "utf8");
+            const marker = '  addTool(server, "tiktok_connect", {';
+            const pos = s.indexOf(marker);
+            if (pos < 0) throw new Error("tiktok_connect marker not found");
+
+            const connectEndMarker = '  addTool(server, "tiktok_connect_status", {';
+            const end = s.indexOf(connectEndMarker, pos);
+            if (end < 0) throw new Error("connect-status marker not found");
+
+            const alias = `
+  addTool(server, "tiktok_login", {
+    title: "Log into TikTok",
+    description: "Easy default-account QR login. Opens the local TikTok login browser and returns the QR handoff information. No TikTok API keys are required.",
+    inputSchema: {
+      country: z.string().length(2).optional(),
+      timeout_seconds: z.number().int().min(30).max(900).optional(),
+    },
+  }, (args) => runtime.connect({
+    account_id: "default",
+    country: args.country,
+    timeout_seconds: args.timeout_seconds,
+  }));
+
+`;
+            s = s.slice(0, end) + alias + s.slice(end);
+            s = s.replace(
+              '{ name: "ai.palmyr/tiktok", title: "TikTok MCP", version: "0.3.1" }',
+              '{ name: "tiktok-easy", title: "TikTok Easy", version: "0.1.0" }'
+            );
+            fs.writeFileSync(p, s);
+          }
+          NODE
+
+      - name: Build and test upstream runtime
+        run: |
+          set -euo pipefail
+          cd /tmp/tiktok-upstream
+          npm ci
+          npm test
+          npm run build
+
+      - name: Prepare portable MCPB payload
+        run: |
+          set -euo pipefail
+          cd /tmp/tiktok-upstream
+          npm prune --omit=dev
+
+          rm -rf /tmp/tiktok-easy-pkg
+          mkdir -p /tmp/tiktok-easy-pkg/app
+          cp -R dist node_modules package.json /tmp/tiktok-easy-pkg/app/
+          cp "$GITHUB_WORKSPACE/tiktok-easy/manifest.json" /tmp/tiktok-easy-pkg/manifest.json
+          cp "$GITHUB_WORKSPACE/tiktok-easy/README.md" /tmp/tiktok-easy-pkg/README.md
+          cp "$GITHUB_WORKSPACE/tiktok-easy/SECURITY.md" /tmp/tiktok-easy-pkg/SECURITY.md
+          cp "$GITHUB_WORKSPACE/tiktok-easy/LICENSE" /tmp/tiktok-easy-pkg/LICENSE
+          cp "$GITHUB_WORKSPACE/tiktok-easy/THIRD_PARTY_LICENSES.md" /tmp/tiktok-easy-pkg/THIRD_PARTY_LICENSES.md
+
+          node --check /tmp/tiktok-easy-pkg/app/dist/index.js
+          node --check /tmp/tiktok-easy-pkg/app/dist/server.js
+
+          cd /tmp/tiktok-easy-pkg
+          zip -X -q -r "$GITHUB_WORKSPACE/tiktok-easy/tiktok-easy-v0.1.0.mcpb" .
+          cd /tmp/tiktok-upstream
+          zip -X -q -r "$GITHUB_WORKSPACE/tiktok-easy/tiktok-easy-v0.1.0-source.zip"             src package.json package-lock.json tsconfig.json README.md LICENSE SKILL.md server.json
+          cd "$GITHUB_WORKSPACE/tiktok-easy"
+          sha256sum tiktok-easy-v0.1.0.mcpb > tiktok-easy-v0.1.0.mcpb.sha256
+
+      - name: Smoke test packaged server
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/tiktok-easy-smoke
+          mkdir /tmp/tiktok-easy-smoke
+          unzip -q tiktok-easy/tiktok-easy-v0.1.0.mcpb -d /tmp/tiktok-easy-smoke
+          cd /tmp/tiktok-easy-smoke
+          test -f app/dist/index.js
+          test -d app/node_modules/playwright
+          test -f THIRD_PARTY_LICENSES.md
+          printf '%s\n'             '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}'             '{"jsonrpc":"2.0","method":"notifications/initialized"}'             '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'             | timeout 10s node app/dist/index.js > /tmp/tiktok-easy-smoke.out || true
+          grep -q '"tiktok_login"' /tmp/tiktok-easy-smoke.out
+          grep -q '"tiktok_post"' /tmp/tiktok-easy-smoke.out
+
+      - name: Commit artifacts
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add tiktok-easy/tiktok-easy-v0.1.0.mcpb                   tiktok-easy/tiktok-easy-v0.1.0-source.zip                   tiktok-easy/tiktok-easy-v0.1.0.mcpb.sha256
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish TikTok Easy v0.1.0 artifacts"
+            git push origin HEAD:main
+          fi
+
+      - name: Publish GitHub release
+        run: |
+          set -euo pipefail
+          tag="tiktok-easy-v0.1.0"
+          target="$(git rev-parse HEAD)"
+          cat > /tmp/tiktok-easy-notes.md <<'EOF'
+          TikTok Easy v0.1.0 packages the MIT-licensed 0xArtex/tiktok-mcp browser-session runtime into a ready-to-import MCPB.
+
+          Import → run tiktok_login → scan the TikTok QR → done.
+
+          No TikTok developer app, API key, client secret, npm install, TypeScript build, or manual MCP configuration is required. The bundle includes its Node runtime dependencies and adds Helium browser detection plus the tiktok_login convenience tool.
+
+          It supports posting and native scheduling, account/session management, likes, follows, deletion, profile/avatar updates, analytics, saved performance history and hook analysis.
+
+          This is an unofficial browser-session integration, not TikTok's official API. Browser automation carries platform/account risk and may break when TikTok changes its web interface. Do not use it for spam, artificial engagement, mass following, or evading platform controls.
+
+          Upstream attribution and the original Palmyr MIT license are included in the bundle and repository.
+          EOF
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag"               tiktok-easy/tiktok-easy-v0.1.0.mcpb               tiktok-easy/tiktok-easy-v0.1.0-source.zip               tiktok-easy/tiktok-easy-v0.1.0.mcpb.sha256               --clobber
+          else
+            gh release create "$tag"               --target "$target"               --title "TikTok Easy v0.1.0"               --notes-file /tmp/tiktok-easy-notes.md               tiktok-easy/tiktok-easy-v0.1.0.mcpb               tiktok-easy/tiktok-easy-v0.1.0-source.zip               tiktok-easy/tiktok-easy-v0.1.0.mcpb.sha256
+          fi
