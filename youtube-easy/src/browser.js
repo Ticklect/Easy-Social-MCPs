@@ -308,9 +308,7 @@ export class YouTubeBrowser {
     await client.send("Runtime.enable");
     await client.send("DOM.enable");
     await client.send("Network.enable");
-    const href = await client.evaluate("location.href").catch(() => "");
-    try { parseGoogleYoutubeUrl(href); }
-    catch { await this.navigate(client, safe); }
+    await this.navigate(client, safe);
     return client;
   }
 

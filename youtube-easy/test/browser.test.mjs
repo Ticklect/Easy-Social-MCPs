@@ -56,6 +56,37 @@ test("reusable targets must be approved HTTPS pages with exact-port loopback CDP
   assert.equal(selectReusableTarget(targets, 9222), null);
 });
 
+test("an approved reusable tab is still navigated to the tool's requested page", async () => {
+  let current = "https://www.youtube.com/watch?v=abc123xyz89";
+  const commands = [];
+  class FakeWebSocket {
+    constructor() {
+      this.listeners = new Map();
+      queueMicrotask(() => this.emit("open", {}));
+    }
+    addEventListener(name, fn) { this.listeners.set(name, fn); }
+    emit(name, event) { this.listeners.get(name)?.(event); }
+    send(raw) {
+      const message = JSON.parse(raw);
+      commands.push(message);
+      if (message.method === "Page.navigate") current = message.params.url;
+      const value = message.method === "Runtime.evaluate"
+        ? message.params.expression.includes("ready:") ? { ready: "complete", href: current } : current
+        : undefined;
+      queueMicrotask(() => this.emit("message", { data: JSON.stringify({ id: message.id, result: value === undefined ? {} : { result: { value } } }) }));
+    }
+    close() { this.emit("close", {}); }
+  }
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-reuse-"));
+  const browser = new YouTubeBrowser({ stateDir: root, WebSocketClass: FakeWebSocket });
+  browser.start = async () => 43117;
+  browser.listTargets = async () => [{ type: "page", url: current, webSocketDebuggerUrl: "ws://127.0.0.1:43117/devtools/page/one" }];
+  const client = await browser.page("https://studio.youtube.com/");
+  client.close();
+  assert.equal(current, "https://studio.youtube.com/");
+  assert.equal(commands.filter((item) => item.method === "Page.navigate").length, 1);
+});
+
 test("dedicated browser launch binds loopback, uses an ephemeral port, and isolates the profile", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-browser-"));
   const executable = path.join(root, "chromium.exe");
