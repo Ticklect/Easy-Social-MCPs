@@ -1275,33 +1275,45 @@ const tools = [
       if (url !== undefined && text !== undefined && text.length > 0) throw new Error("Choose either text or url for a post, not both.");
       const kind = url ? "link" : "self";
       if (kind === "self" && text === undefined) text = "";
-      const fingerprint = crypto.createHash("sha256").update(`${subreddit}\n${title}\n${url || text || ""}`).digest("hex");
+      const intent = { type: "create_post", subreddit, title, kind, text: kind === "self" ? text : undefined, url: kind === "link" ? url : undefined, flairId, flairText, spoiler, nsfw };
+      const fingerprint = writeFingerprint("create_post", intent);
 
-      return await withWriteGuard(fingerprint, async () => await withRedditPage(async (cdp) => {
+      return await withRedditPage(async (cdp) => {
         const session = await getSession(cdp);
         if (!session.loggedIn) throw new Error("Not logged in. Run reddit_login first and sign in in the dedicated browser window.");
         if (!session.modhash) throw new Error("Reddit login is present, but the browser session did not expose the required session token. Open reddit.com in the dedicated browser and try again.");
-        const resp = await postForm(cdp, "/api/submit", {
-          api_type: "json",
-          kind,
-          sr: subreddit,
-          title,
-          text: kind === "self" ? text : undefined,
-          url: kind === "link" ? url : undefined,
-          sendreplies: "true",
-          resubmit: "true",
-          spoiler: spoiler ? "true" : "false",
-          nsfw: nsfw ? "true" : "false",
-          flair_id: flairId,
-          flair_text: flairText,
-          raw_json: "1",
-        }, session.modhash);
-        const error = apiErrors(resp);
-        if (!resp?.ok || error) throw new Error(error || `Reddit rejected the post (HTTP ${resp?.status || 0}).`);
-        const data = resp?.data?.json?.data || {};
-        const postUrl = data.url || (data.id ? `https://www.reddit.com/comments/${data.id}` : null);
-        return postUrl ? `Posted successfully to r/${subreddit}: ${postUrl}` : `Posted successfully to r/${subreddit}.`;
-      }));
+        const outcome = await coordinatedWrite({
+          root: appDir,
+          account: session.username,
+          fingerprint,
+          intent,
+          duplicateWindowMs: DUPLICATE_WINDOW_MS,
+          writeGapMs: WRITE_GAP_MS,
+          reconcile: (record) => reconcileCreatePost(cdp, record),
+          operation: async () => {
+            const resp = await postForm(cdp, "/api/submit", {
+              api_type: "json", kind, sr: subreddit, title,
+              text: kind === "self" ? text : undefined,
+              url: kind === "link" ? url : undefined,
+              sendreplies: "true", resubmit: "true",
+              spoiler: spoiler ? "true" : "false",
+              nsfw: nsfw ? "true" : "false",
+              flair_id: flairId, flair_text: flairText, raw_json: "1",
+            }, session.modhash);
+            const error = apiErrors(resp);
+            if (error) throw new KnownWriteFailure(error);
+            requireKnownWriteResponse(resp, "Reddit rejected the post");
+            const data = resp?.data?.json?.data || {};
+            const fullname = data.name || (data.id ? `t3_${data.id}` : undefined);
+            const permalink = redditPermalink(data.url) || (data.id ? `https://www.reddit.com/comments/${data.id}` : undefined);
+            return {
+              message: permalink ? `Posted successfully to r/${subreddit}: ${permalink}` : `Posted successfully to r/${subreddit}.`,
+              fullname, permalink,
+            };
+          },
+        });
+        return formatWriteOutcome(outcome);
+      });
     },
   },
   {
@@ -1321,18 +1333,29 @@ const tools = [
       const args = asObject(raw);
       const parentId = thingId(stringArg(args, "parent_id", { max: 32 }), "parent_id");
       const text = stringArg(args, "text", { min: 1, max: 10_000, trimForEmpty: true });
-      const fingerprint = crypto.createHash("sha256").update(`${parentId}\n${text}`).digest("hex");
-      return await withWriteGuard(fingerprint, async () => await withRedditPage(async (cdp) => {
+      const intent = { type: "reply", parentId, text };
+      const fingerprint = writeFingerprint("reply", intent);
+      return await withRedditPage(async (cdp) => {
         const session = await getSession(cdp);
         if (!session.loggedIn) throw new Error("Not logged in. Run reddit_login first.");
         if (!session.modhash) throw new Error("Could not obtain the Reddit browser-session token.");
-        const resp = await postForm(cdp, "/api/comment", { api_type: "json", thing_id: parentId, text, raw_json: "1" }, session.modhash);
-        const error = apiErrors(resp);
-        if (!resp?.ok || error) throw new Error(error || `Reddit rejected the reply (HTTP ${resp?.status || 0}).`);
-        const things = resp?.data?.json?.data?.things;
-        const id = Array.isArray(things) ? things[0]?.data?.id : null;
-        return id ? `Reply posted successfully: t1_${id}` : "Reply posted successfully.";
-      }));
+        const outcome = await coordinatedWrite({
+          root: appDir, account: session.username, fingerprint, intent,
+          duplicateWindowMs: DUPLICATE_WINDOW_MS, writeGapMs: WRITE_GAP_MS,
+          reconcile: (record) => reconcileReply(cdp, record),
+          operation: async () => {
+            const resp = await postForm(cdp, "/api/comment", { api_type: "json", thing_id: parentId, text, raw_json: "1" }, session.modhash);
+            const error = apiErrors(resp);
+            if (error) throw new KnownWriteFailure(error);
+            requireKnownWriteResponse(resp, "Reddit rejected the reply");
+            const thing = resp?.data?.json?.data?.things?.[0]?.data || {};
+            const fullname = thing.name || (thing.id ? `t1_${thing.id}` : undefined);
+            const permalink = thing.permalink ? `https://www.reddit.com${thing.permalink}` : undefined;
+            return { message: permalink ? `Reply posted successfully: ${permalink}` : (fullname ? `Reply posted successfully: ${fullname}` : "Reply posted successfully."), fullname, permalink };
+          },
+        });
+        return formatWriteOutcome(outcome);
+      });
     },
   },
   {
@@ -1353,15 +1376,25 @@ const tools = [
       const id = thingId(stringArg(args, "thing_id", { max: 32 }));
       const max = id.toLowerCase().startsWith("t1_") ? 10_000 : 40_000;
       const text = stringArg(args, "text", { max });
-      const fingerprint = crypto.createHash("sha256").update(`edit:${id}:${text}`).digest("hex");
-      return await withWriteGuard(fingerprint, async () => await withRedditPage(async (cdp) => {
+      const intent = { type: "edit", id, text };
+      const fingerprint = writeFingerprint("edit", intent);
+      return await withRedditPage(async (cdp) => {
         const session = await getSession(cdp);
         if (!session.loggedIn || !session.modhash) throw new Error("Not logged into Reddit in the dedicated browser profile.");
-        const resp = await postForm(cdp, "/api/editusertext", { api_type: "json", thing_id: id, text, raw_json: "1" }, session.modhash);
-        const error = apiErrors(resp);
-        if (!resp?.ok || error) throw new Error(error || `Reddit rejected the edit (HTTP ${resp?.status || 0}).`);
-        return `Edited ${id} successfully.`;
-      }));
+        const outcome = await coordinatedWrite({
+          root: appDir, account: session.username, fingerprint, intent,
+          duplicateWindowMs: DUPLICATE_WINDOW_MS, writeGapMs: WRITE_GAP_MS,
+          reconcile: (record) => reconcileEdit(cdp, record),
+          operation: async () => {
+            const resp = await postForm(cdp, "/api/editusertext", { api_type: "json", thing_id: id, text, raw_json: "1" }, session.modhash);
+            const error = apiErrors(resp);
+            if (error) throw new KnownWriteFailure(error);
+            requireKnownWriteResponse(resp, "Reddit rejected the edit");
+            return { message: `Edited ${id} successfully.`, fullname: id };
+          },
+        });
+        return formatWriteOutcome(outcome);
+      });
     },
   },
   {
@@ -1377,13 +1410,23 @@ const tools = [
     execute: async (raw) => {
       const args = asObject(raw);
       const id = thingId(stringArg(args, "thing_id", { max: 32 }));
-      return await withWriteGuard(`delete:${id}`, async () => await withRedditPage(async (cdp) => {
+      const intent = { type: "delete", id };
+      const fingerprint = writeFingerprint("delete", intent);
+      return await withRedditPage(async (cdp) => {
         const session = await getSession(cdp);
         if (!session.loggedIn || !session.modhash) throw new Error("Not logged into Reddit in the dedicated browser profile.");
-        const resp = await postForm(cdp, "/api/del", { id, raw_json: "1" }, session.modhash);
-        if (!resp?.ok) throw new Error(`Reddit rejected the delete (HTTP ${resp?.status || 0}).`);
-        return `Deleted ${id}.`;
-      }));
+        const outcome = await coordinatedWrite({
+          root: appDir, account: session.username, fingerprint, intent,
+          duplicateWindowMs: DUPLICATE_WINDOW_MS, writeGapMs: WRITE_GAP_MS,
+          reconcile: (record) => reconcileDelete(cdp, record),
+          operation: async () => {
+            const resp = await postForm(cdp, "/api/del", { id, raw_json: "1" }, session.modhash);
+            requireKnownWriteResponse(resp, "Reddit rejected the delete");
+            return { message: `Deleted ${id}.`, fullname: id };
+          },
+        });
+        return formatWriteOutcome(outcome);
+      });
     },
   },
   {
@@ -1409,8 +1452,8 @@ const tools = [
     description: "Close the dedicated Reddit Easy browser and erase only its local browser profile, removing the locally saved Reddit session from this plugin. This does not delete or modify the Reddit account itself.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { title: "Forget Reddit session", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
-    execute: async () => {
-      await closeDedicatedBrowser();
+    execute: async () => await withProfileLease(async () => {
+      await closeDedicatedBrowserUnlocked();
       try {
         fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
       } catch (error) {
@@ -1418,7 +1461,7 @@ const tools = [
       }
       ensurePrivateDir(profileDir);
       return "Forgot the local Reddit Easy browser session. You will need to run reddit_login again before using Reddit tools.";
-    },
+    }),
   },
 ];
 
