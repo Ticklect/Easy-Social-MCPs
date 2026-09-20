@@ -126,7 +126,9 @@ test("every installed bundle completes an MCP initialize and tools/list handshak
   });
   const input = `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "easy-mcp-installer-test", version: "0.1.0" } } })}\n${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`;
   for (const item of installed) {
-    const run = spawnSync(process.execPath, [item.entryPath], { input, encoding: "utf8", timeout: 15_000 });
+    // macOS exposes os.tmpdir() through /var while Node canonicalizes it to /private/var.
+    // Launch the canonical path so servers with an import.meta entry-point guard self-start.
+    const run = spawnSync(process.execPath, [fs.realpathSync(item.entryPath)], { input, encoding: "utf8", timeout: 15_000 });
     assert.equal(run.status, 0, `${item.name}: ${run.stderr || run.stdout}`);
     const responses = run.stdout.split(/\r?\n/).filter((line) => line.trim().startsWith("{")).map((line) => JSON.parse(line));
     assert.equal(responses.find((response) => response.id === 1)?.result?.serverInfo?.name?.length > 0, true, `${item.name}: initialize\n${run.stdout}\n${run.stderr}`);
