@@ -15,7 +15,23 @@ This repository includes all four ready-to-use MCPs:
 | [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/tiktok-easy-v0.1.0/tiktok-easy-v0.1.0.mcpb) |
 | [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/youtube-easy-v0.1.0/youtube-easy-v0.1.0.mcpb) |
 
-### Installing in Codex or Claude Code
+### Easiest setup: give this prompt to your coding agent
+
+Copy a `.mcpb` link from the table above, replace `<MCPB LINK>` below, and paste the whole prompt into Codex or Claude Code:
+
+```text
+Install this Easy Social MCP into the coding client you are currently running in:
+<MCPB LINK>
+
+Use the official Easy MCP Installer from:
+https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-mcp-installer-v0.1.0/easy-mcp-installer-v0.1.0.zip
+
+Download both files to a temporary folder, verify the release checksums, extract the installer, and run it for this client only: use --host codex when running in Codex or --host claude when running in Claude Code. Do not run npm install and do not ask me to edit MCP configuration manually. Verify that the MCP registration succeeded, tell me whether I need to restart the client, and remove only the temporary installer/download files. Do not start a login, upload, post, delete, or other external action yet.
+```
+
+For example, start the prompt with “Install YouTube Easy into my Codex” and use the YouTube `.mcpb` link from the table. After restarting, say “Start YouTube login.”
+
+### Manual installation in Codex or Claude Code
 
 You need **two downloads**: the [Easy MCP Installer ZIP](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-mcp-installer-v0.1.0/easy-mcp-installer-v0.1.0.zip), plus the `.mcpb` file for each MCP you want from the table above. You do not need the source ZIPs.
 
