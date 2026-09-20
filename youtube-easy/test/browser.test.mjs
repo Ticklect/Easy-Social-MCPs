@@ -147,3 +147,11 @@ test("CDP file assignment fails closed when the selector is absent or ambiguous"
   client.send = async () => ({ result: { value: { count: 2 } } });
   await assert.rejects(() => client.setFileInputFiles("input[type=file]", ["clip.mp4"]), /exactly one/);
 });
+
+test("CDP refuses malformed generated browser scripts before sending them", async () => {
+  let sends = 0;
+  const client = Object.create(CdpClient.prototype);
+  client.send = async () => { sends++; return {}; };
+  await assert.rejects(() => client.evaluate("(() => { const broken = ; })()"), /invalid browser script/i);
+  assert.equal(sends, 0);
+});

@@ -9,6 +9,7 @@ import {
   verifyEditState,
   commitOnlyAfterVerification,
   StudioAdapter,
+  STUDIO_SELECTORS,
 } from "../src/studio.js";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -37,6 +38,20 @@ test("verification errors identify that no final Studio action was sent", () => 
   try { verifyUploadState(expected, { ...actual, visibility: null }); }
   catch (caught) { error = caught; }
   assert.equal(error?.finalActionNotSent, true);
+});
+
+test("Studio readback failures are marked pre-commit and never invoke the final action", async () => {
+  let commits = 0;
+  let caught;
+  try {
+    await commitOnlyAfterVerification({
+      readState: async () => { throw new Error("CDP readback failed"); },
+      expected,
+      commit: async () => { commits++; },
+    });
+  } catch (error) { caught = error; }
+  assert.equal(caught?.finalActionNotSent, true);
+  assert.equal(commits, 0);
 });
 
 const mismatches = [
@@ -157,6 +172,7 @@ test("Studio video reads include bounded processing and checks status", async ()
     async evaluate(expression) {
       if (expression.includes("__youtubeEasyReadEditState")) return { title: "Upload", visibility: "private" };
       if (expression.includes("__youtubeEasyReadProcessingState")) return { uploadStatus: "Processing 42%", checksStatus: "Checks complete" };
+      if (expression.includes("__youtubeEasyVideoPresence")) return { status: "exists" };
       if (expression.includes("document.querySelector")) return true;
       throw new Error(`unexpected expression: ${expression.slice(0, 80)}`);
     },
@@ -166,4 +182,129 @@ test("Studio video reads include bounded processing and checks status", async ()
   const result = await adapter.readVideo("abc123xyz89");
   assert.equal(result.uploadStatus, "Processing 42%");
   assert.equal(result.checksStatus, "Checks complete");
+});
+
+test("all core Studio extraction scripts compile after template interpolation", async () => {
+  const client = {
+    async evaluate(expression) {
+      assert.doesNotThrow(() => new Function(expression));
+      if (expression.includes("__youtubeEasyStatus")) return { loggedIn: false };
+      if (expression.includes("__youtubeEasyReadUploadState")) return {};
+      if (expression.includes("__youtubeEasyReadEditState")) return {};
+      if (expression.includes("__youtubeEasyListContent")) return [];
+      return true;
+    },
+  };
+  const browser = { async navigate(_client, url) { return url; } };
+  const adapter = new StudioAdapter({ client, browser, sleepFn: async () => {} });
+  await adapter.getStatus();
+  await adapter.readUploadState();
+  await adapter.readEditState();
+  await adapter.listContent();
+});
+
+test("duplicate visible metadata controls fail closed before upload commit", async () => {
+  const node = () => ({
+    isContentEditable: true,
+    textContent: "",
+    getBoundingClientRect: () => ({ width: 100, height: 20 }),
+    getAttribute: () => "false",
+    focus() {}, click() {}, dispatchEvent() {},
+  });
+  const titleA = node();
+  const titleB = node();
+  const description = node();
+  const audience = node();
+  const document = {
+    querySelectorAll(selector) {
+      if (selector === STUDIO_SELECTORS.title) return [titleA, titleB];
+      if (selector === STUDIO_SELECTORS.description) return [description];
+      if (selector.includes("VIDEO_MADE_FOR_KIDS_NOT_MFK")) return [audience];
+      return [];
+    },
+  };
+  const client = {
+    async evaluate(expression) {
+      return new Function("document", "getComputedStyle", "InputEvent", "Event", `return ${expression}`)(
+        document,
+        () => ({ display: "block", visibility: "visible" }),
+        class {},
+        class {},
+      );
+    },
+  };
+  const adapter = new StudioAdapter({ client, sleepFn: async () => {} });
+  await assert.rejects(() => adapter.fillUploadDetails({ title: "Title", description: "Description", madeForKids: false, tags: [] }), /unambiguous/);
+});
+
+test("delete is not reported successful until Studio confirms absence", async () => {
+  const client = {
+    async evaluate(expression) {
+      assert.doesNotThrow(() => new Function(expression));
+      if (expression.includes("__youtubeEasyReadEditState")) return { title: "Original" };
+      if (expression.includes("__youtubeEasyClickSemantic")) return { clicked: true };
+      if (expression.includes("__youtubeEasyPrepareDelete")) return { ready: true };
+      if (expression.includes("__youtubeEasyConfirmDelete")) return { status: "exists" };
+      if (expression.includes("__youtubeEasyVideoPresence")) return { status: "exists" };
+      if (expression.includes("document.querySelector")) return true;
+      throw new Error("unexpected expression");
+    },
+  };
+  const browser = { async navigate(_client, url) { return url; } };
+  const adapter = new StudioAdapter({ client, browser, sleepFn: async () => {} });
+  await assert.rejects(() => adapter.deleteVideo("abc123xyz89", "Original"), /did not confirm/);
+});
+
+test("only an exact Studio error component produces typed VIDEO_NOT_FOUND", async () => {
+  let state = "absent";
+  const client = { async evaluate(expression) {
+    if (expression.includes("__youtubeEasyVideoPresence")) return { status: state };
+    throw new Error("unexpected expression");
+  } };
+  const browser = { async navigate(_client, url) { return url; } };
+  const adapter = new StudioAdapter({ client, browser, sleepFn: async () => {} });
+  await assert.rejects(() => adapter.readVideo("abc123xyz89"), (error) => error.code === "VIDEO_NOT_FOUND");
+  state = "unknown";
+  await assert.rejects(() => adapter.readVideo("abc123xyz89"), (error) => error.code !== "VIDEO_NOT_FOUND" && /unambiguous/.test(error.message));
+});
+
+test("reply reconciliation requires exact text and the signed-in channel ID", async () => {
+  let expression;
+  const client = { async evaluate(value) { expression = value; return { status: "not_found" }; } };
+  const adapter = new StudioAdapter({ client, sleepFn: async () => {} });
+  await adapter.findReply("comment-1", "Thanks", { channelId: `UC${"A".repeat(22)}` });
+  assert.doesNotThrow(() => new Function(expression));
+  assert.match(expression, /===clean\(wanted\)/);
+  assert.match(expression, /links\[0\]===channelId/);
+});
+
+test("upload fallback stays uncertain when Studio cannot expose the local file fingerprint", async () => {
+  const adapter = new StudioAdapter({ client: { evaluate: async () => [] }, sleepFn: async () => {} });
+  const requestedAt = Date.now();
+  adapter.listContent = async () => [{
+    videoId: "abc123xyz89",
+    title: "Launch",
+    visibility: "private",
+    createdAt: new Date(requestedAt + 1_000).toISOString(),
+  }];
+  assert.equal((await adapter.findVideoByIntent({ title: "Launch", visibility: "private", requestedAt, fileFingerprint: "abc" })).status, "unknown");
+  assert.equal((await adapter.findVideoByIntent({ title: "Launch", visibility: "public", requestedAt })).status, "unknown");
+  assert.equal((await adapter.findVideoByIntent({ title: "Launch", visibility: "private" })).status, "unknown");
+});
+
+test("duplicate visible schedule inputs fail closed", async () => {
+  const element = (label) => ({
+    placeholder: "",
+    value: "",
+    getAttribute: (name) => name === "aria-label" ? label : "false",
+    getBoundingClientRect: () => ({ width: 100, height: 20 }),
+    focus() {}, click() {}, dispatchEvent() {},
+  });
+  const radio = element("schedule");
+  const document = { querySelectorAll: (selector) => selector === "input" ? [element("Date"), element("Date"), element("Time")] : [radio] };
+  const client = { async evaluate(expression) {
+    return new Function("document", "getComputedStyle", "InputEvent", "Event", `return ${expression}`)(document, () => ({ display: "block", visibility: "visible" }), class {}, class {});
+  } };
+  const adapter = new StudioAdapter({ client, sleepFn: async () => {} });
+  await assert.rejects(() => adapter.setUploadVisibility({ visibility: "public", publishAt: "2030-06-07T12:30:00Z" }), /schedule-inputs/);
 });

@@ -47,7 +47,7 @@ export async function handleMessage(message, handlers = {}) {
     try {
       return { jsonrpc: "2.0", id: message.id, result: resultText(await handler(message.params?.arguments || {})) };
     } catch (error) {
-      return { jsonrpc: "2.0", id: message.id, result: resultText(error?.message || String(error), true) };
+      return { jsonrpc: "2.0", id: message.id, result: resultText(error?.outcome || error?.message || String(error), true) };
     }
   }
   if (message.id !== undefined) {

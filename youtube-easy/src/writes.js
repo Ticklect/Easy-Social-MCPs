@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { withYouTubePage } from "./browser.js";
-import { withProfileLease, coordinatedWrite, KnownNotAppliedError, formatWriteOutcome } from "./coordination.js";
+import { withProfileLease, coordinatedWrite, KnownNotAppliedError, DraftPreservedError, formatWriteOutcome } from "./coordination.js";
 import { StudioAdapter, verifyEditState } from "./studio.js";
 import { validateUploadInput, validateShortMetadata, validatePublishAt } from "./validation.js";
 
@@ -88,6 +88,11 @@ export function uploadFingerprint(intent, fsApi = fs) {
 }
 
 function publicOutcome(outcome) {
+  if (outcome?.status === "draft_preserved") {
+    const error = new Error(outcome.result?.message || "Upload stopped before publication and the Studio draft was preserved.");
+    error.outcome = { ...outcome, message: outcome.result?.message };
+    throw error;
+  }
   return { ...outcome, message: formatWriteOutcome(outcome) };
 }
 
@@ -121,7 +126,7 @@ function normalizedUpdate(value) {
 }
 
 function definitelyMissing(error) {
-  return error?.code === "VIDEO_NOT_FOUND" || /not found|does not exist|404/i.test(error?.message || "");
+  return error?.code === "VIDEO_NOT_FOUND";
 }
 
 function fieldsReadable(expected, actual) {
@@ -143,6 +148,11 @@ export function createWriteHandlers({
   ), leaseOptions);
 
   const channel = async () => await withStudio(async (studio) => await studio.requireChannel(), { url: "https://studio.youtube.com/" });
+  const withSessionStudio = async (session, fn, options = {}) => await withStudio(async (studio) => {
+    const current = await studio.requireChannel();
+    if (current.channelId !== session.channelId) throw new Error("UNCERTAIN: The signed-in YouTube channel changed before the operation could be verified; no further action was sent.");
+    return await fn(studio, current);
+  }, options);
   const coordinate = async (options) => publicOutcome(await coordinatedWrite({
     ...options,
     root: stateDir,
@@ -151,8 +161,8 @@ export function createWriteHandlers({
     writeGapMs: leaseOptions.writeGapMs ?? 3_500,
   }));
 
-  async function reconcileUpload(record, intent) {
-    return await withStudio(async (studio) => {
+  async function reconcileUpload(record, intent, session) {
+    return await withSessionStudio(session, async (studio) => {
       const partialId = record.partialResult?.videoId;
       if (partialId) {
         try {
@@ -185,40 +195,48 @@ export function createWriteHandlers({
 
   async function upload(args, short) {
     const intent = validateUploadInput(args, fsApi);
+    intent.requestedAt = Date.now();
+    intent.fileFingerprint = sampledFileHash(intent.filePath, fsApi);
     const session = await channel();
     const fingerprint = `${short ? "short" : "video"}:${uploadFingerprint(intent, fsApi)}`;
     return await coordinate({
       account: session.channelId,
       fingerprint,
-      intent: { action: short ? "upload_short" : "upload_video", title: intent.title, requestedAt: Date.now(), ...intent, filePath: undefined, thumbnailPath: undefined },
+      intent: { action: short ? "upload_short" : "upload_video", ...intent, fileName: path.basename(intent.filePath), filePath: undefined, thumbnailPath: undefined },
       duplicateWindowMs: 24 * 60 * 60 * 1_000,
-      reconcile: (record) => reconcileUpload(record, intent),
-      operation: async ({ persist }) => await withStudio(async (studio) => {
-        const current = await studio.requireChannel();
-        if (current.channelId !== session.channelId) throw new Error("The signed-in YouTube channel changed before upload; no final publish action was sent.");
+      reconcile: (record) => reconcileUpload(record, intent, session),
+      operation: async ({ persist }) => await withSessionStudio(session, async (studio) => {
         await studio.openUploadDialog(session.channelId);
         let captured = {};
-        await studio.selectVideoFile(intent.filePath, async (video) => {
-          captured = video || {};
-          persist({ ...captured, channelId: session.channelId, verified: { phase: "video_id_captured" } });
-        });
-        const metadata = await studio.readSelectedMediaMetadata();
-        const draft = (reason) => ({
-          message: `Stopped before publication: ${reason} The uploaded item was left in its existing draft/private Studio state.`,
-          ...captured,
-          channelId: session.channelId,
-          verified: { draftPreserved: true, reason },
-        });
-        if (metadata.fileName !== path.basename(intent.filePath) || Number(metadata.fileSize) !== Number(intent.fileSize)) {
-          return draft("the selected file could not be verified");
+        const draft = (reason) => {
+          const message = `Stopped before publication: ${reason} The uploaded item was left in its existing draft/private Studio state.`;
+          throw new DraftPreservedError(message, {
+            ...captured,
+            channelId: session.channelId,
+            verified: { draftPreserved: true, reason },
+          });
+        };
+        try {
+          await studio.selectVideoFile(intent.filePath, async (video) => {
+            captured = video || {};
+            persist({ ...captured, channelId: session.channelId, verified: { phase: "video_id_captured" } });
+          });
+        } catch (error) {
+          draft(error?.message || "Studio could not verify the selected file dialog");
         }
-        if (short) {
-          try { validateShortMetadata(metadata); }
-          catch (error) { return draft(error.message); }
+        try {
+          const metadata = await studio.readSelectedMediaMetadata();
+          if (metadata.fileName !== path.basename(intent.filePath) || Number(metadata.fileSize) !== Number(intent.fileSize)) {
+            draft("the selected file could not be verified");
+          }
+          if (short) validateShortMetadata(metadata);
+          await studio.fillUploadDetails(intent);
+          await studio.advanceToVisibility();
+          await studio.setUploadVisibility(intent);
+        } catch (error) {
+          if (error?.draftPreserved) throw error;
+          draft(error?.message || "Studio could not prepare and verify the upload fields");
         }
-        await studio.fillUploadDetails(intent);
-        await studio.advanceToVisibility();
-        await studio.setUploadVisibility(intent);
         try {
           const result = await studio.commitUpload(intent);
           return { message: short ? "YouTube Short upload completed." : "YouTube video upload completed.", ...captured, ...result, channelId: session.channelId, verified: { ...result?.verified, title: intent.title, visibility: intent.publishAt ? "scheduled" : intent.visibility, madeForKids: intent.madeForKids } };
@@ -238,7 +256,7 @@ export function createWriteHandlers({
       account: session.channelId,
       fingerprint,
       intent: { action: "update_video", ...edit },
-      reconcile: async () => await withStudio(async (studio) => {
+      reconcile: async () => await withSessionStudio(session, async (studio) => {
         try {
           const actual = await studio.readVideo(edit.videoId);
           if (!fieldsReadable(edit, actual)) return { status: "unknown" };
@@ -246,7 +264,7 @@ export function createWriteHandlers({
           catch { return { status: "not_found" }; }
         } catch (error) { return definitelyMissing(error) ? { status: "not_found" } : { status: "unknown" }; }
       }),
-      operation: async () => await withStudio(async (studio) => {
+      operation: async () => await withSessionStudio(session, async (studio) => {
         await studio.openVideo(edit.videoId);
         await studio.applyEdit(edit);
         try {
@@ -275,14 +293,14 @@ export function createWriteHandlers({
       account: session.channelId,
       fingerprint: `thumbnail:${digest(stable({ id, canonical, size: stat.size, mtimeMs: stat.mtimeMs, sample: sampledFileHash(canonical, fsApi) }))}`,
       intent: { action: "set_thumbnail", videoId: id, thumbnailFileName },
-      reconcile: async () => await withStudio(async (studio) => {
+      reconcile: async () => await withSessionStudio(session, async (studio) => {
         try {
           const actual = await studio.readVideo(id);
           if (actual.thumbnailFileName === thumbnailFileName) return { status: "found", result: { message: "Found requested thumbnail", ...actual } };
           return actual.thumbnailFileName == null ? { status: "unknown" } : { status: "not_found" };
         } catch (error) { return definitelyMissing(error) ? { status: "not_found" } : { status: "unknown" }; }
       }),
-      operation: async () => await withStudio(async (studio) => {
+      operation: async () => await withSessionStudio(session, async (studio) => {
         await studio.openVideo(id);
         await studio.setThumbnailFile(canonical);
         try {
@@ -306,7 +324,7 @@ export function createWriteHandlers({
       account: session.channelId,
       fingerprint: `schedule:${digest(stable({ id, publishAt }))}`,
       intent: { action: "schedule_video", videoId: id, publishAt },
-      reconcile: async () => await withStudio(async (studio) => {
+      reconcile: async () => await withSessionStudio(session, async (studio) => {
         try {
           const actual = await studio.readVideo(id);
           if (!actual.publishAt || !actual.scheduleTimeZone) return { status: "unknown" };
@@ -315,7 +333,7 @@ export function createWriteHandlers({
             : { status: "not_found" };
         } catch (error) { return definitelyMissing(error) ? { status: "not_found" } : { status: "unknown" }; }
       }),
-      operation: async () => await withStudio(async (studio) => {
+      operation: async () => await withSessionStudio(session, async (studio) => {
         await studio.openVideo(id);
         await studio.setSchedule(publishAt);
         try {
@@ -339,7 +357,7 @@ export function createWriteHandlers({
       fingerprint: `delete:${digest(stable({ id, confirmTitle }))}`,
       intent: { action: "delete_video", videoId: id, confirmTitle },
       duplicateWindowMs: 365 * 24 * 60 * 60 * 1_000,
-      reconcile: async () => await withStudio(async (studio) => {
+      reconcile: async () => await withSessionStudio(session, async (studio) => {
         try { await studio.readVideo(id); return { status: "not_found" }; }
         catch (error) {
           return definitelyMissing(error)
@@ -347,7 +365,7 @@ export function createWriteHandlers({
             : { status: "unknown" };
         }
       }),
-      operation: async () => await withStudio(async (studio) => ({ ...(await studio.deleteVideo(id, confirmTitle)), channelId: session.channelId })),
+      operation: async () => await withSessionStudio(session, async (studio) => ({ ...(await studio.deleteVideo(id, confirmTitle)), channelId: session.channelId })),
     });
   }
 
@@ -361,14 +379,14 @@ export function createWriteHandlers({
       fingerprint: `reply:${digest(stable({ commentId, text }))}`,
       intent: { action: "reply_to_comment", commentId, text },
       duplicateWindowMs: 30 * 24 * 60 * 60 * 1_000,
-      reconcile: async () => await withStudio(async (studio) => {
+      reconcile: async () => await withSessionStudio(session, async (studio) => {
         await studio.listComments({ limit: 100 });
-        return await studio.findReply(commentId, text);
+        return await studio.findReply(commentId, text, { channelId: session.channelId });
       }),
-      operation: async () => await withStudio(async (studio) => {
+      operation: async () => await withSessionStudio(session, async (studio) => {
         const comments = await studio.listComments({ limit: 100 });
         if (!comments.some((comment) => comment.commentId === commentId)) throw new KnownNotAppliedError("The target Studio comment could not be found; no reply was sent.");
-        return { ...(await studio.replyToComment(commentId, text)), channelId: session.channelId };
+        return { ...(await studio.replyToComment(commentId, text, { channelId: session.channelId })), channelId: session.channelId };
       }),
     });
   }

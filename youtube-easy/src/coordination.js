@@ -32,6 +32,13 @@ function removeQuiet(target) {
   try { fs.rmSync(target, { recursive: true, force: true, maxRetries: 4, retryDelay: 25 }); } catch {}
 }
 
+export function isProcessAlive(pid, killFn = process.kill) {
+  const value = Number(pid);
+  if (!Number.isInteger(value) || value <= 0) return false;
+  try { killFn(value, 0); return true; }
+  catch (error) { return error?.code === "EPERM"; }
+}
+
 export function coordinationPaths(root) {
   const base = path.join(root, "coordination");
   return {
@@ -112,7 +119,7 @@ export async function acquireLease({
     if (current) {
       const heartbeatAt = Number(current.heartbeatAt || current.createdAt || 0);
       const activeLeaseMs = Math.max(100, Number(current.leaseMs || leaseMs));
-      stale = Date.now() - heartbeatAt > activeLeaseMs;
+      stale = Date.now() - heartbeatAt > activeLeaseMs && !isProcessAlive(current.pid);
     } else {
       try { stale = Date.now() - fs.statSync(lockDir).mtimeMs > Math.max(100, leaseMs); }
       catch { continue; }
@@ -199,6 +206,15 @@ export class KnownNotAppliedError extends Error {
   }
 }
 
+export class DraftPreservedError extends Error {
+  constructor(message, result = {}) {
+    super(message);
+    this.name = "DraftPreservedError";
+    this.draftPreserved = true;
+    this.result = result;
+  }
+}
+
 export function formatWriteOutcome(outcome) {
   if (!outcome || typeof outcome !== "object") return String(outcome ?? "");
   if (outcome.status === "uncertain") {
@@ -258,6 +274,9 @@ export async function coordinatedWrite({
     let previous = readJson(recordPath);
     if (previous?.status === "success" && now - Number(previous.completedAt || 0) < duplicateWindowMs) {
       return { status: "reused", result: normalizeWriteResult(previous.result), persisted: true };
+    }
+    if (previous?.status === "draft_preserved" && now - Number(previous.completedAt || 0) < duplicateWindowMs) {
+      return { status: "draft_preserved", result: normalizeWriteResult(previous.result), persisted: true, reused: true };
     }
 
     if (previous?.sentAt && previous.status !== "success") {
@@ -326,6 +345,13 @@ export async function coordinatedWrite({
       lease.update({ phase: "success", videoId: merged.videoId });
       return { status: "success", result: merged, persisted: true };
     } catch (error) {
+      if (error?.draftPreserved) {
+        const result = normalizeWriteResult({ ...(record.partialResult || {}), ...(error.result || {}), message: error.message });
+        record = { ...record, status: "draft_preserved", completedAt: Date.now(), result };
+        atomicJsonWrite(recordPath, record);
+        lease.update({ phase: "draft-preserved", videoId: result.videoId });
+        return { status: "draft_preserved", result, persisted: true };
+      }
       if (error?.knownNotApplied) {
         record = { ...record, status: "failed", failedAt: Date.now(), message: error.message };
         atomicJsonWrite(recordPath, record);

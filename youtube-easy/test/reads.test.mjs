@@ -17,6 +17,7 @@ class FakeStudio {
 class FakeClient {
   constructor() { this.transcriptAvailable = true; }
   async evaluate(expression) {
+    assert.doesNotThrow(() => new Function(expression));
     if (expression.includes("__youtubeEasyPublicSearch")) return [{ videoId: "abc123xyz89", title: "T".repeat(800), channel: "Creator", url: "https://www.youtube.com/watch?v=abc123xyz89", description: "D".repeat(20_000) }];
     if (expression.includes("__youtubeEasyPublicVideo")) return { videoId: "abc123xyz89", title: "Public video", channel: "Creator", description: "Description", views: "100 views", published: "today", url: "https://www.youtube.com/watch?v=abc123xyz89" };
     if (expression.includes("__youtubeEasyPublicChannel")) return { channelId: `UC${"B".repeat(22)}`, name: "Public Channel", handle: "@public", description: "Channel description", subscribers: "10 subscribers", url: "https://www.youtube.com/@public" };

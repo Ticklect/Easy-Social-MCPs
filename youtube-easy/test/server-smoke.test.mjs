@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { createDefaultHandlers } from "../src/server.js";
+import { createDefaultHandlers, handleMessage } from "../src/server.js";
 import { TOOL_NAMES } from "../src/catalog.js";
 
 const entry = fileURLToPath(new URL("../src/server.js", import.meta.url));
@@ -58,4 +58,15 @@ test("default runtime wires every declared tool without starting the browser", (
   });
   assert.deepEqual(Object.keys(handlers).sort(), [...TOOL_NAMES].sort());
   for (const name of TOOL_NAMES) assert.equal(typeof handlers[name], "function", name);
+});
+
+test("preserved draft outcomes are returned as structured MCP errors", async () => {
+  const error = new Error("Stopped before publication");
+  error.outcome = { status: "draft_preserved", result: { videoId: "abc123xyz89" }, message: error.message };
+  const response = await handleMessage({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "upload_short", arguments: {} } }, {
+    upload_short: async () => { throw error; },
+  });
+  assert.equal(response.result.isError, true);
+  assert.match(response.result.content[0].text, /draft_preserved/);
+  assert.match(response.result.content[0].text, /abc123xyz89/);
 });

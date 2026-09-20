@@ -84,3 +84,10 @@ test("build creates a self-contained MCPB, source ZIP, and matching SHA-256", as
   assert.equal(responses.find((item) => item.id === 1).result.serverInfo.version, "0.1.0");
   assert.equal(responses.find((item) => item.id === 2).result.tools.length, 17);
 });
+
+test("release workflow is immutable and tag-triggered", () => {
+  const workflow = fs.readFileSync(path.join(root, "..", ".github", "workflows", "build-youtube-easy.yml"), "utf8");
+  assert.match(workflow, /tags:\s*\["youtube-easy-v\*"\]/);
+  assert.doesNotMatch(workflow, /--clobber/);
+  assert.match(workflow, /already exists.*Refusing to overwrite/is);
+});

@@ -24,6 +24,8 @@ Uploads accept a local video path, title, description, private/unlisted/public v
 
 YouTube Easy only clicks final publish, schedule, or save controls after re-reading the important Studio fields and matching them to the request. This includes the selected filename and size, title, description, audience, visibility, schedule instant/time-zone text, and requested thumbnail, playlist, and tags. If Studio does not expose an unambiguous control or readable value, it stops before the final action. An upload already selected by Studio may remain as a draft/private item.
 
+When a selected upload is deliberately stopped, the MCP returns a structured `draft_preserved` error containing any captured video ID/URLs. That terminal outcome is persisted and reused for the identical request so another process cannot accidentally upload the same file again.
+
 ## Cross-process safety
 
 The browser profile and every write are coordinated with filesystem-backed leases shared by completely independent Node/MCP processes. A write acquires its account + request-fingerprint lease before duplicate checking. Successful results are persisted with video IDs, Studio URLs, and public URLs as early as Studio exposes them.

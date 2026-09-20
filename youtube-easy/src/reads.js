@@ -158,7 +158,7 @@ export function createReadHandlers({
       const url = validateChannelUrl(stringArg(args, "channel_url", { max: 2_000 }));
       return await withBrowserPage(async (client, activeBrowser) => {
         await navigate(client, activeBrowser, url);
-        const channel = await client.evaluate(`(() => { /* __youtubeEasyPublicChannel */
+        const channel = await client.evaluate(String.raw`(() => { /* __youtubeEasyPublicChannel */
           const meta=name=>document.querySelector('meta[name="'+name+'"],meta[property="'+name+'"]')?.content||null;
           const clean=(value,max)=>String(value||'').trim().replace(/\s+/g,' ').slice(0,max);
           const canonical=document.querySelector('link[rel="canonical"]')?.href||location.href;
@@ -176,7 +176,7 @@ export function createReadHandlers({
       const url = `https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`;
       return await withBrowserPage(async (client, activeBrowser) => {
         await navigate(client, activeBrowser, url);
-        const results = await client.evaluate(`(() => { /* __youtubeEasyPublicSearch */
+        const results = await client.evaluate(String.raw`(() => { /* __youtubeEasyPublicSearch */
           const limit=${limit};const clean=(v,n)=>String(v||'').trim().replace(/\s+/g,' ').slice(0,n);
           const rows=Array.from(document.querySelectorAll('ytd-video-renderer,ytd-grid-video-renderer,ytd-reel-item-renderer'));
           return rows.slice(0,limit).map(row=>{const link=row.querySelector('a#video-title,a[href*="/watch"],a[href*="/shorts/"]');const href=link?.href||'';const id=(href.match(/[?&]v=([A-Za-z0-9_-]{6,20})/)||href.match(/\/shorts\/([A-Za-z0-9_-]{6,20})/))?.[1]||null;return {videoId:id,title:clean(link?.getAttribute('title')||link?.textContent,500),channel:clean(row.querySelector('ytd-channel-name,#channel-name')?.textContent,500),url:id?'https://www.youtube.com/watch?v='+id:null,description:clean(row.querySelector('#description-text,#metadata-snippet-text')?.textContent,5000)}}).filter(item=>item.videoId&&item.title);
@@ -191,7 +191,7 @@ export function createReadHandlers({
       const url = `https://www.youtube.com/watch?v=${id}`;
       return await withBrowserPage(async (client, activeBrowser) => {
         await navigate(client, activeBrowser, url);
-        const video = await client.evaluate(`(() => { /* __youtubeEasyPublicVideo */
+        const video = await client.evaluate(String.raw`(() => { /* __youtubeEasyPublicVideo */
           const clean=(v,n)=>String(v||'').trim().replace(/\s+/g,' ').slice(0,n);const meta=(name)=>document.querySelector('meta[name="'+name+'"],meta[property="'+name+'"]')?.content||null;
           const canonical=document.querySelector('link[rel="canonical"]')?.href||location.href;const id=(new URL(canonical)).searchParams.get('v')||${JSON.stringify(id)};
           return {videoId:id,title:clean(document.querySelector('h1 yt-formatted-string,h1.title')?.textContent||meta('og:title'),500),channel:clean(document.querySelector('ytd-channel-name,#owner #channel-name')?.textContent,500),description:clean(document.querySelector('#description-inline-expander,#description')?.textContent||meta('description'),5000),views:clean(document.querySelector('#info span,yt-formatted-string#info')?.textContent,500),published:clean(document.querySelector('#info-strings yt-formatted-string')?.textContent,500),url:'https://www.youtube.com/watch?v='+id};
@@ -206,7 +206,7 @@ export function createReadHandlers({
       const url = `https://www.youtube.com/watch?v=${id}`;
       return await withBrowserPage(async (client, activeBrowser) => {
         await navigate(client, activeBrowser, url);
-        const transcript = await client.evaluate(`(async () => { /* __youtubeEasyTranscript */
+        const transcript = await client.evaluate(String.raw`(async () => { /* __youtubeEasyTranscript */
           const visible=el=>{if(!el)return false;const r=el.getBoundingClientRect();return r.width>0&&r.height>0};
           let segments=Array.from(document.querySelectorAll('ytd-transcript-segment-renderer'));
           if(!segments.length){const buttons=Array.from(document.querySelectorAll('button,[role="button"],ytd-button-renderer')).filter(visible).filter(el=>/show transcript|transcript/i.test(el.getAttribute('aria-label')||el.textContent||''));if(buttons.length!==1)return {available:false,reason:'This video does not expose a transcript.'};buttons[0].click();for(let i=0;i<40&&!segments.length;i++){await new Promise(r=>setTimeout(r,250));segments=Array.from(document.querySelectorAll('ytd-transcript-segment-renderer'));}}

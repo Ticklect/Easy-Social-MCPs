@@ -159,6 +159,8 @@ export class CdpClient {
   }
 
   async evaluate(expression, { returnByValue = true, userGesture = false } = {}) {
+    try { new Function(String(expression)); }
+    catch (error) { throw new Error(`YouTube Easy generated an invalid browser script: ${error.message}`); }
     const result = await this.send("Runtime.evaluate", {
       expression,
       awaitPromise: true,

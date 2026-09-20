@@ -23,6 +23,7 @@ class FakeStudio {
     this.replySends = 0;
     this.replies = new Set();
     this.media = { duration: 60, width: 1080, height: 1920 };
+    this.channelSequence = [];
     this.video = {
       videoId: "vid_test_01",
       title: "Original title",
@@ -36,7 +37,7 @@ class FakeStudio {
     };
   }
 
-  async requireChannel() { return { loggedIn: true, channelId: `UC${"A".repeat(22)}`, channelName: "Test channel" }; }
+  async requireChannel() { return { loggedIn: true, channelId: this.channelSequence.shift() || `UC${"A".repeat(22)}`, channelName: "Test channel" }; }
   async openUploadDialog() { this.events.push("open"); }
   async selectVideoFile(_file, onVideoId) {
     this.events.push("file");
@@ -123,12 +124,8 @@ test("invalid Short metadata prevents publish and persists a reusable draft-pres
   const studio = new FakeStudio();
   studio.media = { duration: 181, width: 1080, height: 1920 };
   const handlers = harness(studio, root);
-  const first = await handlers.upload_short(uploadArgs(video));
-  const second = await handlers.upload_short(uploadArgs(video));
-  assert.equal(first.status, "success");
-  assert.equal(first.result.verified.draftPreserved, true);
-  assert.match(first.result.message, /Stopped before publication/);
-  assert.equal(second.status, "reused");
+  await assert.rejects(() => handlers.upload_short(uploadArgs(video)), /Stopped before publication/);
+  await assert.rejects(() => handlers.upload_short(uploadArgs(video)), /Stopped before publication/);
   assert.equal(studio.commitUploads, 0);
 });
 
@@ -136,10 +133,31 @@ test("upload verification failure prevents final publication and preserves dupli
   const { root, video } = fixture();
   const studio = new FakeStudio();
   studio.verificationFailure = true;
-  const result = await harness(studio, root).upload_video(uploadArgs(video));
-  assert.equal(result.status, "success");
-  assert.equal(result.result.verified.draftPreserved, true);
-  assert.match(result.result.message, /verification/i);
+  await assert.rejects(() => harness(studio, root).upload_video(uploadArgs(video)), /verification/i);
+  assert.equal(studio.commitUploads, 1);
+});
+
+test("pre-commit Studio failures after file selection persist a draft-preserved error", async () => {
+  const { root, video } = fixture();
+  const studio = new FakeStudio();
+  studio.fillUploadDetails = async () => { throw new Error("ambiguous title control"); };
+  const handlers = harness(studio, root);
+  await assert.rejects(() => handlers.upload_video(uploadArgs(video)), /Stopped before publication: ambiguous title control/);
+  await assert.rejects(() => handlers.upload_video(uploadArgs(video)), /Stopped before publication: ambiguous title control/);
+  assert.equal(studio.events.filter((event) => event === "file").length, 1);
+  assert.equal(studio.commitUploads, 0);
+});
+
+test("ambiguous file-input completion is persisted as draft-preserved", async () => {
+  const { root, video } = fixture();
+  const studio = new FakeStudio();
+  let attempts = 0;
+  studio.selectVideoFile = async () => { attempts++; throw new Error("upload details dialog was not verifiable"); };
+  const handlers = harness(studio, root);
+  await assert.rejects(() => handlers.upload_video(uploadArgs(video)), /Stopped before publication/);
+  await assert.rejects(() => handlers.upload_video(uploadArgs(video)), /Stopped before publication/);
+  assert.equal(attempts, 1);
+  assert.equal(studio.commitUploads, 0);
 });
 
 test("update, thumbnail, and schedule handlers save only their verified requested state", async () => {
@@ -153,6 +171,15 @@ test("update, thumbnail, and schedule handlers save only their verified requeste
   assert.equal(thumb.result.verified.thumbnailFileName, "thumb.png");
   assert.equal(scheduled.result.verified.publishAt, "2030-06-07T12:30:00Z");
   assert.deepEqual(studio.events.filter((event) => event.startsWith("save")), ["save-edit", "save-thumbnail", "save-schedule"]);
+});
+
+test("a channel switch between intent capture and mutation prevents the write", async () => {
+  const { root } = fixture();
+  const studio = new FakeStudio();
+  studio.channelSequence = [`UC${"A".repeat(22)}`, `UC${"B".repeat(22)}`, `UC${"B".repeat(22)}`];
+  const result = await harness(studio, root).update_video({ video_id: "vid_test_01", title: "Wrong channel" });
+  assert.equal(result.status, "uncertain");
+  assert.equal(studio.events.includes("save-edit"), false);
 });
 
 test("delete reconciles a lost response as success and reuses it without deleting twice", async () => {

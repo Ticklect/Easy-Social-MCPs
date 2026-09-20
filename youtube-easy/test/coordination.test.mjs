@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { acquireLease } from "../src/coordination.js";
 
 const worker = fileURLToPath(new URL("./coordination-worker.mjs", import.meta.url));
 
@@ -78,6 +79,19 @@ test("stale filesystem lease is recovered after its owning process dies", async 
   await new Promise((resolve) => child.once("exit", resolve));
   await new Promise((resolve) => setTimeout(resolve, 350));
   assert.match((await run("recover-lock", root, external)).stdout, /recovered/);
+});
+
+test("an old heartbeat never steals a lease from a live owner process", async () => {
+  const root = tempRoot();
+  const lease = await acquireLease({ root, namespace: "live", key: "same", leaseMs: 100, waitMs: 500 });
+  const leaseFile = path.join(lease.lockDir, "lease.json");
+  const record = JSON.parse(fs.readFileSync(leaseFile, "utf8"));
+  fs.writeFileSync(leaseFile, JSON.stringify({ ...record, heartbeatAt: Date.now() - 10_000 }));
+  await assert.rejects(
+    acquireLease({ root, namespace: "live", key: "same", leaseMs: 100, waitMs: 80 }),
+    /Timed out/,
+  );
+  lease.release();
 });
 
 test("crash after upload dispatch reconciles found video without a duplicate", async () => {

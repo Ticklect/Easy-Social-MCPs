@@ -2,11 +2,7 @@ name: Build YouTube Easy v0.1.0
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "youtube-easy/**"
-      - ".github/workflows/build-youtube-easy.yml"
-  workflow_dispatch:
+    tags: ["youtube-easy-v*"]
 
 permissions:
   contents: write
@@ -35,25 +31,26 @@ jobs:
       - name: Build deterministic artifacts
         run: npm --prefix youtube-easy run build
 
-      - name: Verify packaged MCP server
-        run: node --test youtube-easy/test/package.test.mjs
-
-      - name: Commit artifacts when needed
+      - name: Verify tag and committed artifacts
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add youtube-easy/youtube-easy-v0.1.0.mcpb youtube-easy/youtube-easy-v0.1.0-source.zip youtube-easy/youtube-easy-v0.1.0.mcpb.sha256
-          if ! git diff --cached --quiet; then
-            git commit -m "Publish YouTube Easy v0.1.0 artifacts"
-            git push origin HEAD:main
-          fi
+          test "$GITHUB_REF_NAME" = "youtube-easy-v0.1.0"
+          git diff --exit-code -- \
+            youtube-easy/youtube-easy-v0.1.0.mcpb \
+            youtube-easy/youtube-easy-v0.1.0-source.zip \
+            youtube-easy/youtube-easy-v0.1.0.mcpb.sha256
+
+      - name: Verify packaged MCP server
+        run: node --test youtube-easy/test/package.test.mjs
 
       - name: Publish GitHub Release
         run: |
           set -euo pipefail
           tag="youtube-easy-v0.1.0"
-          target="$(git rev-parse HEAD)"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "$tag already exists. Refusing to overwrite immutable release assets." >&2
+            exit 1
+          fi
           cat > "$RUNNER_TEMP/youtube-easy-notes.md" <<'EOF'
           YouTube Easy v0.1.0 is a ready-to-import, dependency-free Node 22 MCPB for YouTube and YouTube Studio browser automation.
 
@@ -68,8 +65,4 @@ jobs:
             youtube-easy/youtube-easy-v0.1.0-source.zip
             youtube-easy/youtube-easy-v0.1.0.mcpb.sha256
           )
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" "${assets[@]}" --clobber
-          else
-            gh release create "$tag" --target "$target" --title "YouTube Easy v0.1.0" --notes-file "$RUNNER_TEMP/youtube-easy-notes.md" "${assets[@]}"
-          fi
+          gh release create "$tag" --verify-tag --title "YouTube Easy v0.1.0" --notes-file "$RUNNER_TEMP/youtube-easy-notes.md" "${assets[@]}"
