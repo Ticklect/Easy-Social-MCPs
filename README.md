@@ -8,12 +8,26 @@ Reddit Easy uses a dedicated local Chromium browser profile. Sign in to Reddit n
 
 This repository includes all four ready-to-use MCPs:
 
-| MCP | Start login | Download |
+| MCP | Start login | Download this MCP file |
 | --- | --- | --- |
-| [Reddit Easy](./README.md) | `reddit_login` | [v0.3.1 release](../../releases/tag/reddit-easy-v0.3.1) |
-| [X Easy](./x-easy/README.md) | `x_login` | [v0.1.0 MCPB](./x-easy/x-easy-v0.1.0.mcpb) |
-| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [v0.1.0 release](../../releases/tag/tiktok-easy-v0.1.0) |
-| [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [v0.1.0 release](../../releases/tag/youtube-easy-v0.1.0) |
+| [Reddit Easy](./README.md) | `reddit_login` | [`reddit-easy-v0.3.1.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/reddit-easy-v0.3.1/reddit-easy-v0.3.1.mcpb) |
+| [X Easy](./x-easy/README.md) | `x_login` | [`x-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/x-easy-v0.1.0/x-easy-v0.1.0.mcpb) |
+| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/tiktok-easy-v0.1.0/tiktok-easy-v0.1.0.mcpb) |
+| [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/youtube-easy-v0.1.0/youtube-easy-v0.1.0.mcpb) |
+
+### Installing in Codex or Claude Code
+
+You need **two downloads**: the [Easy MCP Installer ZIP](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-mcp-installer-v0.1.0/easy-mcp-installer-v0.1.0.zip), plus the `.mcpb` file for each MCP you want from the table above. You do not need the source ZIPs.
+
+Extract the installer ZIP, place the downloaded `.mcpb` files beside `install-easy-mcp.mjs`, then run one command:
+
+```text
+node install-easy-mcp.mjs --host codex youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host claude youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.0.mcpb youtube-easy-v0.1.0.mcpb
+```
+
+Restart Codex or Claude Code afterward. The first command installs only into Codex, the second only into Claude Code, and `--host both` installs into both.
 
 ## YouTube Easy
 
