@@ -4,6 +4,17 @@
 
 Reddit Easy uses a dedicated local Chromium browser profile. Sign in to Reddit normally once and the MCP reuses that local session.
 
+## Easy Social MCPs
+
+This repository includes all four ready-to-use MCPs:
+
+| MCP | Start login | Download |
+| --- | --- | --- |
+| [Reddit Easy](./README.md) | `reddit_login` | [v0.3.1 release](../../releases/tag/reddit-easy-v0.3.1) |
+| [X Easy](./x-easy/README.md) | `x_login` | [v0.1.0 MCPB](./x-easy/x-easy-v0.1.0.mcpb) |
+| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [v0.1.0 release](../../releases/tag/tiktok-easy-v0.1.0) |
+| [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [v0.1.0 release](../../releases/tag/youtube-easy-v0.1.0) |
+
 ## Codex and Claude Code installer
 
 Use the dependency-free **[Easy MCP Installer](./easy-mcp-installer/README.md)** to register Reddit Easy, YouTube Easy, X Easy, or TikTok Easy in Codex and Claude Code without editing MCP JSON/TOML or running `npm install`:
