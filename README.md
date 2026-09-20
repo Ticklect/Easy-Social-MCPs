@@ -4,6 +4,16 @@
 
 Reddit Easy uses a dedicated local Chromium browser profile. Sign in to Reddit normally once and the MCP reuses that local session.
 
+## YouTube Easy
+
+**[YouTube Easy](./youtube-easy/README.md)** brings the same import-and-sign-in approach to YouTube Studio: download the MCPB, import it, run `youtube_login`, and sign in normally in its dedicated browser profile. No YouTube Data API, Google Cloud project, OAuth client, API key, copied cookies, or runtime npm install is required.
+
+It includes fail-closed video/Short upload, metadata editing, thumbnails, scheduling, comments, channel/video/search reads, and transcript extraction when the public page exposes it. Cross-process leases and persisted reconciliation return `UNCERTAIN` instead of risking duplicate writes after an ambiguous crash.
+
+[Download YouTube Easy v0.1.0](../../releases/tag/youtube-easy-v0.1.0)
+
+> v0.1.0 is offline-tested against simulated Studio DOM states; it does not claim a live upload was verified. YouTube web automation may break when Studio changes. Read the [YouTube Easy security and limitations](./youtube-easy/README.md) before use.
+
 ## TikTok Easy
 
 I also added **[TikTok Easy](./tiktok-easy/README.md)** for TikTok. It packages the browser-session TikTok MCP into a ready-to-import bundle with no TikTok developer app or API keys.

@@ -1,0 +1,16 @@
+{
+  "name": "youtube-easy-mcp",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/server.js",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node dist/server.js",
+    "check": "node --check src/server.js && node --check src/catalog.js && node --check src/validation.js && node --check src/browser.js && node --check src/coordination.js && node --check src/studio.js && node --check src/writes.js && node --check src/reads.js && node --check scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  }
+}
