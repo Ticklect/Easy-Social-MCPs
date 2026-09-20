@@ -10,6 +10,17 @@ YouTube Easy is a ready-to-import MCP bundle for uploading and managing videos t
 4. Sign in to Google/YouTube normally in the dedicated browser window and choose the intended channel.
 5. Run `youtube_status` to verify the selected channel.
 
+### Codex and Claude Code
+
+These clients run YouTube Easy as a local stdio MCP. Download and extract the [Easy MCP Installer](../easy-mcp-installer/README.md), place the YouTube `.mcpb` beside it, and run:
+
+```text
+node install-easy-mcp.mjs --host codex youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host claude youtube-easy-v0.1.0.mcpb
+```
+
+After restarting the client, say “Start YouTube login.” In a fresh chat the MCP catalog remains registered; the agent can call `youtube_status` first and opens `youtube_login` only if the dedicated profile is signed out.
+
 Never type a Google password into an MCP tool. Authentication belongs only in the real Google/YouTube page opened by YouTube Easy. The bundle contains its complete Node 22 runtime code and has no npm dependencies or runtime install step.
 
 ## Tools

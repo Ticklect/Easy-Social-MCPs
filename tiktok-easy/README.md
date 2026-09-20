@@ -1,5 +1,7 @@
 # TikTok Easy
 
+For Codex or Claude Code, the dependency-free [Easy MCP Installer](../easy-mcp-installer/README.md) registers this bundle at user scope. After restarting the client, say “Start TikTok login.” TikTok Easy keeps its local account/browser state across chats, so the agent can check the existing connection before creating another QR login.
+
 **Import → log in → post.**
 
 TikTok Easy packages the MIT-licensed `0xArtex/tiktok-mcp` browser-session implementation into a ready-to-import MCPB so normal users do not need to clone a repo, run `npm install`, configure API keys, or create a TikTok developer app.

@@ -1,0 +1,14 @@
+{
+  "name": "easy-mcp-installer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "check": "node --check install-easy-mcp.mjs && node --check scripts/build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "build": "node scripts/build.mjs"
+  }
+}

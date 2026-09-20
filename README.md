@@ -4,6 +4,19 @@
 
 Reddit Easy uses a dedicated local Chromium browser profile. Sign in to Reddit normally once and the MCP reuses that local session.
 
+## Codex and Claude Code installer
+
+Use the dependency-free **[Easy MCP Installer](./easy-mcp-installer/README.md)** to register Reddit Easy, YouTube Easy, X Easy, or TikTok Easy in Codex and Claude Code without editing MCP JSON/TOML or running `npm install`:
+
+[Download Easy MCP Installer v0.1.0](../../releases/tag/easy-mcp-installer-v0.1.0)
+
+```text
+node install-easy-mcp.mjs --host codex reddit-easy-v0.3.1.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.0.mcpb youtube-easy-v0.1.0.mcpb
+```
+
+Registration is user-scoped and survives new chats. The dedicated browser profiles are also persistent, so a fresh chat checks `reddit_status`, `youtube_status`, `x_status`, or TikTok's account status before opening a new login flow. You only sign in again when the website expires its session or you explicitly erase that MCP's profile.
+
 ## YouTube Easy
 
 **[YouTube Easy](./youtube-easy/README.md)** brings the same import-and-sign-in approach to YouTube Studio: download the MCPB, import it, run `youtube_login`, and sign in normally in its dedicated browser profile. No YouTube Data API, Google Cloud project, OAuth client, API key, copied cookies, or runtime npm install is required.
@@ -42,6 +55,8 @@ I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same
 4. Sign in to Reddit in the dedicated browser window.
 5. Run `reddit_status`.
 6. Done.
+
+For Codex or Claude Code, use the Easy MCP Installer above in place of step 2, restart the client, and say “Start Reddit login.”
 
 No Reddit developer portal. No client ID. No client secret. No Reddit password field in the plugin.
 

@@ -1,5 +1,7 @@
 # X Easy
 
+For Codex or Claude Code, the dependency-free [Easy MCP Installer](../easy-mcp-installer/README.md) registers this bundle at user scope. After restarting the client, say “Start X login.” The dedicated browser profile persists across chats, and `x_status` can confirm whether another login is actually needed.
+
 **Import → log in → use X.**
 
 X Easy is an MCPB plugin for using X through a dedicated local browser session without creating an X developer app or pasting API credentials into plugin settings.
