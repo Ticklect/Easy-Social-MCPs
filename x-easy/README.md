@@ -78,4 +78,4 @@ Original project: https://github.com/SohrabZ/x-browser-mcp
 
 ## License
 
-X Easy is MIT licensed. See [`LICENSE`](./LICENSE) and [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
+X Easy project-owned code is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**. Third-party code remains under its original licenses. See [`LICENSE`](./LICENSE) and [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).

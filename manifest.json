@@ -19,28 +19,94 @@
     }
   },
   "tools": [
-    { "name": "reddit_login", "description": "Open the dedicated Reddit login browser" },
-    { "name": "reddit_status", "description": "Check Reddit login status" },
-    { "name": "get_subreddit_rules", "description": "Read subreddit rules" },
-    { "name": "get_post_flairs", "description": "List post flairs" },
-    { "name": "get_home_feed", "description": "Read the personalized Reddit home feed" },
-    { "name": "get_subreddit_feed", "description": "Browse a subreddit feed" },
-    { "name": "search_reddit", "description": "Search Reddit posts" },
-    { "name": "read_post", "description": "Read full Reddit post details" },
-    { "name": "get_comments", "description": "Read nested Reddit comments" },
-    { "name": "get_inbox", "description": "Read inbox, replies, mentions and messages" },
-    { "name": "get_notifications", "description": "Read Reddit account notifications" },
-    { "name": "get_saved", "description": "Read saved Reddit posts and comments" },
-    { "name": "get_user_profile", "description": "Read a Reddit user profile" },
-    { "name": "get_user_posts", "description": "Read a Reddit user's posts/comments/overview" },
-    { "name": "get_popular", "description": "Browse r/popular" },
-    { "name": "get_all", "description": "Browse r/all" },
-    { "name": "create_post", "description": "Publish a text or link post" },
-    { "name": "reply_to_post", "description": "Reply to a post or comment" },
-    { "name": "edit_reddit_text", "description": "Edit your own post/comment text" },
-    { "name": "delete_reddit_item", "description": "Delete your own post/comment" },
-    { "name": "open_reddit_url", "description": "Open a Reddit URL for manual review" },
-    { "name": "reddit_forget_session", "description": "Erase the plugin's local Reddit browser session" }
+    {
+      "name": "reddit_login",
+      "description": "Open the dedicated Reddit login browser"
+    },
+    {
+      "name": "reddit_status",
+      "description": "Check Reddit login status"
+    },
+    {
+      "name": "get_subreddit_rules",
+      "description": "Read subreddit rules"
+    },
+    {
+      "name": "get_post_flairs",
+      "description": "List post flairs"
+    },
+    {
+      "name": "get_home_feed",
+      "description": "Read the personalized Reddit home feed"
+    },
+    {
+      "name": "get_subreddit_feed",
+      "description": "Browse a subreddit feed"
+    },
+    {
+      "name": "search_reddit",
+      "description": "Search Reddit posts"
+    },
+    {
+      "name": "read_post",
+      "description": "Read full Reddit post details"
+    },
+    {
+      "name": "get_comments",
+      "description": "Read nested Reddit comments"
+    },
+    {
+      "name": "get_inbox",
+      "description": "Read inbox, replies, mentions and messages"
+    },
+    {
+      "name": "get_notifications",
+      "description": "Read Reddit account notifications"
+    },
+    {
+      "name": "get_saved",
+      "description": "Read saved Reddit posts and comments"
+    },
+    {
+      "name": "get_user_profile",
+      "description": "Read a Reddit user profile"
+    },
+    {
+      "name": "get_user_posts",
+      "description": "Read a Reddit user's posts/comments/overview"
+    },
+    {
+      "name": "get_popular",
+      "description": "Browse r/popular"
+    },
+    {
+      "name": "get_all",
+      "description": "Browse r/all"
+    },
+    {
+      "name": "create_post",
+      "description": "Publish a text or link post"
+    },
+    {
+      "name": "reply_to_post",
+      "description": "Reply to a post or comment"
+    },
+    {
+      "name": "edit_reddit_text",
+      "description": "Edit your own post/comment text"
+    },
+    {
+      "name": "delete_reddit_item",
+      "description": "Delete your own post/comment"
+    },
+    {
+      "name": "open_reddit_url",
+      "description": "Open a Reddit URL for manual review"
+    },
+    {
+      "name": "reddit_forget_session",
+      "description": "Erase the plugin's local Reddit browser session"
+    }
   ],
   "keywords": [
     "reddit",
@@ -52,5 +118,5 @@
     "social-media",
     "chat-on-steroids"
   ],
-  "license": "MIT"
+  "license": "AGPL-3.0-or-later"
 }

@@ -5,31 +5,96 @@
   "version": "0.1.0",
   "description": "Upload and manage YouTube through a dedicated browser login. No API keys, OAuth client, or copied cookies.",
   "long_description": "YouTube Easy uses a dedicated local Helium, Chrome, Edge, or Chromium profile and normal Google/YouTube sign-in. It drives YouTube Studio through loopback-only CDP, verifies important fields before final writes, coordinates duplicate protection across separate processes, and returns UNCERTAIN instead of risking repeated ambiguous writes.",
-  "author": { "name": "YouTube Easy contributors" },
+  "author": {
+    "name": "YouTube Easy contributors"
+  },
   "server": {
     "type": "node",
     "entry_point": "dist/server.js",
-    "mcp_config": { "command": "node", "args": ["${__dirname}/dist/server.js"] }
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/server.js"
+      ]
+    }
   },
   "tools": [
-    { "name": "youtube_login", "description": "Open the dedicated YouTube login browser" },
-    { "name": "youtube_status", "description": "Check YouTube login and channel status" },
-    { "name": "upload_video", "description": "Upload a video through YouTube Studio" },
-    { "name": "upload_short", "description": "Validate and upload a YouTube Short" },
-    { "name": "get_my_videos", "description": "Read the signed-in channel's videos" },
-    { "name": "get_upload_status", "description": "Read upload and processing status" },
-    { "name": "update_video", "description": "Update an owned video's metadata" },
-    { "name": "set_thumbnail", "description": "Set an owned video's thumbnail" },
-    { "name": "schedule_video", "description": "Schedule an owned video" },
-    { "name": "delete_video", "description": "Delete an owned video" },
-    { "name": "get_comments", "description": "Read Studio comments" },
-    { "name": "reply_to_comment", "description": "Reply to a Studio comment" },
-    { "name": "get_channel", "description": "Read channel information" },
-    { "name": "search_youtube", "description": "Search public YouTube" },
-    { "name": "get_video", "description": "Read public video metadata" },
-    { "name": "get_transcript", "description": "Read a transcript when available" },
-    { "name": "youtube_forget_session", "description": "Erase the local YouTube Easy browser session" }
+    {
+      "name": "youtube_login",
+      "description": "Open the dedicated YouTube login browser"
+    },
+    {
+      "name": "youtube_status",
+      "description": "Check YouTube login and channel status"
+    },
+    {
+      "name": "upload_video",
+      "description": "Upload a video through YouTube Studio"
+    },
+    {
+      "name": "upload_short",
+      "description": "Validate and upload a YouTube Short"
+    },
+    {
+      "name": "get_my_videos",
+      "description": "Read the signed-in channel's videos"
+    },
+    {
+      "name": "get_upload_status",
+      "description": "Read upload and processing status"
+    },
+    {
+      "name": "update_video",
+      "description": "Update an owned video's metadata"
+    },
+    {
+      "name": "set_thumbnail",
+      "description": "Set an owned video's thumbnail"
+    },
+    {
+      "name": "schedule_video",
+      "description": "Schedule an owned video"
+    },
+    {
+      "name": "delete_video",
+      "description": "Delete an owned video"
+    },
+    {
+      "name": "get_comments",
+      "description": "Read Studio comments"
+    },
+    {
+      "name": "reply_to_comment",
+      "description": "Reply to a Studio comment"
+    },
+    {
+      "name": "get_channel",
+      "description": "Read channel information"
+    },
+    {
+      "name": "search_youtube",
+      "description": "Search public YouTube"
+    },
+    {
+      "name": "get_video",
+      "description": "Read public video metadata"
+    },
+    {
+      "name": "get_transcript",
+      "description": "Read a transcript when available"
+    },
+    {
+      "name": "youtube_forget_session",
+      "description": "Erase the local YouTube Easy browser session"
+    }
   ],
-  "keywords": ["youtube", "studio", "upload", "shorts", "mcp", "browser-login"],
-  "license": "MIT"
+  "keywords": [
+    "youtube",
+    "studio",
+    "upload",
+    "shorts",
+    "mcp",
+    "browser-login"
+  ],
+  "license": "AGPL-3.0-or-later"
 }

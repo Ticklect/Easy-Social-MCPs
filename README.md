@@ -158,4 +158,6 @@ A home-feed read shows the feed Reddit returns when you call it. It cannot recon
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+Project-owned code in this repository is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**. See [LICENSE](./LICENSE).
+
+Third-party components remain under their original licenses; see the relevant `THIRD_PARTY_LICENSES.md` files in subprojects.

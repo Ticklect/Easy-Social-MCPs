@@ -52,4 +52,4 @@ The upstream implementation uses a QR relay service for the shareable login link
 
 ## License
 
-TikTok Easy wrapper files are MIT licensed. Upstream notices are preserved separately.
+TikTok Easy wrapper/project code is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**. The upstream `0xArtex/tiktok-mcp` code remains under its original MIT license, preserved in [THIRD_PARTY_LICENSES.md](./THIRD_PARTY_LICENSES.md).

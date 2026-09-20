@@ -13,30 +13,97 @@
     "entry_point": "dist/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/dist/index.js"]
+      "args": [
+        "${__dirname}/dist/index.js"
+      ]
     }
   },
   "tools": [
-    { "name": "x_login", "description": "Open the dedicated X login browser" },
-    { "name": "x_status", "description": "Check X login status" },
-    { "name": "get_home_timeline", "description": "Read the signed-in user's X home timeline" },
-    { "name": "search_x", "description": "Search X posts" },
-    { "name": "get_user_posts", "description": "Read an X account's recent posts" },
-    { "name": "get_thread", "description": "Read an X post and its replies" },
-    { "name": "get_mentions", "description": "Read posts mentioning the signed-in user" },
-    { "name": "get_notifications", "description": "Read X notifications" },
-    { "name": "get_bookmarks", "description": "Read saved X posts" },
-    { "name": "get_list", "description": "Read an X list timeline" },
-    { "name": "read_x_url", "description": "Read a supported x.com/twitter.com URL" },
-    { "name": "create_post", "description": "Publish a post to X" },
-    { "name": "reply_to_post", "description": "Reply to an X post" },
-    { "name": "like_post", "description": "Like an X post" },
-    { "name": "repost_post", "description": "Repost an X post" },
-    { "name": "bookmark_post", "description": "Bookmark an X post" },
-    { "name": "unbookmark_post", "description": "Remove an X bookmark" },
-    { "name": "open_x_url", "description": "Open an X URL for manual review" },
-    { "name": "x_forget_session", "description": "Erase X Easy's local browser session" }
+    {
+      "name": "x_login",
+      "description": "Open the dedicated X login browser"
+    },
+    {
+      "name": "x_status",
+      "description": "Check X login status"
+    },
+    {
+      "name": "get_home_timeline",
+      "description": "Read the signed-in user's X home timeline"
+    },
+    {
+      "name": "search_x",
+      "description": "Search X posts"
+    },
+    {
+      "name": "get_user_posts",
+      "description": "Read an X account's recent posts"
+    },
+    {
+      "name": "get_thread",
+      "description": "Read an X post and its replies"
+    },
+    {
+      "name": "get_mentions",
+      "description": "Read posts mentioning the signed-in user"
+    },
+    {
+      "name": "get_notifications",
+      "description": "Read X notifications"
+    },
+    {
+      "name": "get_bookmarks",
+      "description": "Read saved X posts"
+    },
+    {
+      "name": "get_list",
+      "description": "Read an X list timeline"
+    },
+    {
+      "name": "read_x_url",
+      "description": "Read a supported x.com/twitter.com URL"
+    },
+    {
+      "name": "create_post",
+      "description": "Publish a post to X"
+    },
+    {
+      "name": "reply_to_post",
+      "description": "Reply to an X post"
+    },
+    {
+      "name": "like_post",
+      "description": "Like an X post"
+    },
+    {
+      "name": "repost_post",
+      "description": "Repost an X post"
+    },
+    {
+      "name": "bookmark_post",
+      "description": "Bookmark an X post"
+    },
+    {
+      "name": "unbookmark_post",
+      "description": "Remove an X bookmark"
+    },
+    {
+      "name": "open_x_url",
+      "description": "Open an X URL for manual review"
+    },
+    {
+      "name": "x_forget_session",
+      "description": "Erase X Easy's local browser session"
+    }
   ],
-  "keywords": ["x", "twitter", "mcp", "browser-login", "social-media", "helium", "chat-on-steroids"],
-  "license": "MIT"
+  "keywords": [
+    "x",
+    "twitter",
+    "mcp",
+    "browser-login",
+    "social-media",
+    "helium",
+    "chat-on-steroids"
+  ],
+  "license": "AGPL-3.0-or-later"
 }

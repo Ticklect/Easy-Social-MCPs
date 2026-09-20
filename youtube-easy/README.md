@@ -55,3 +55,7 @@ npm --prefix youtube-easy run build
 ```
 
 The build is dependency-free and deterministically produces the MCPB, source ZIP, and SHA-256 file in `youtube-easy/`.
+
+## License
+
+YouTube Easy project-owned code is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**. Third-party notices remain under their original licenses. See [`LICENSE`](./LICENSE) and [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).

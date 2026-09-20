@@ -5,15 +5,25 @@
   "version": "0.1.0",
   "description": "TikTok browser-session MCP with QR login and no TikTok API keys.",
   "long_description": "Import the bundle, run tiktok_login, scan TikTok's QR code, and use TikTok through a persistent local browser profile. Includes posting, native scheduling, profile management, likes, follows, deletion, analytics and local performance history.",
-  "author": { "name": "TikTok Easy contributors" },
+  "author": {
+    "name": "TikTok Easy contributors"
+  },
   "server": {
     "type": "node",
     "entry_point": "app/dist/index.js",
     "mcp_config": {
       "command": "node",
-      "args": ["${__dirname}/app/dist/index.js"]
+      "args": [
+        "${__dirname}/app/dist/index.js"
+      ]
     }
   },
-  "keywords": ["tiktok", "mcp", "browser-login", "qr-login", "social-media"],
-  "license": "MIT"
+  "keywords": [
+    "tiktok",
+    "mcp",
+    "browser-login",
+    "qr-login",
+    "social-media"
+  ],
+  "license": "AGPL-3.0-or-later"
 }
