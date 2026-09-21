@@ -72,6 +72,9 @@ test("all-in-one build packages the installer and exact released bytes for all f
   ]);
   assert.match(entries.get("README.md").toString("utf8"), /--host both[\s\S]*reddit-easy-v0\.3\.1\.mcpb[\s\S]*youtube-easy-v0\.1\.0\.mcpb/);
   assert.match(entries.get("install-easy-mcp.mjs").toString("utf8"), /Easy MCP Installer/);
+  for (const name of ["LICENSE", "README.md", "SHA256SUMS.txt", "install-easy-mcp.mjs"]) {
+    assert.equal(entries.get(name).includes(13), false, `${name} must use portable LF line endings`);
+  }
 
   const checksumLines = entries.get("SHA256SUMS.txt").toString("utf8").trim().split(/\r?\n/).sort();
   const expectedChecksumLines = [];

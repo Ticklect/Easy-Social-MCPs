@@ -75,16 +75,21 @@ function sha256(data) {
 }
 
 const sources = [
-  ["README.md", path.join(packageDir, "README.md")],
-  ["LICENSE", path.join(repoRoot, "LICENSE")],
-  ["install-easy-mcp.mjs", path.join(repoRoot, "easy-mcp-installer", "install-easy-mcp.mjs")],
-  ["reddit-easy-v0.3.1.mcpb", path.join(repoRoot, "reddit-easy-v0.3.1.mcpb")],
-  ["x-easy-v0.1.0.mcpb", path.join(repoRoot, "x-easy", "x-easy-v0.1.0.mcpb")],
-  ["tiktok-easy-v0.1.0.mcpb", path.join(repoRoot, "tiktok-easy", "tiktok-easy-v0.1.0.mcpb")],
-  ["youtube-easy-v0.1.0.mcpb", path.join(repoRoot, "youtube-easy", "youtube-easy-v0.1.0.mcpb")],
+  ["README.md", path.join(packageDir, "README.md"), true],
+  ["LICENSE", path.join(repoRoot, "LICENSE"), true],
+  ["install-easy-mcp.mjs", path.join(repoRoot, "easy-mcp-installer", "install-easy-mcp.mjs"), true],
+  ["reddit-easy-v0.3.1.mcpb", path.join(repoRoot, "reddit-easy-v0.3.1.mcpb"), false],
+  ["x-easy-v0.1.0.mcpb", path.join(repoRoot, "x-easy", "x-easy-v0.1.0.mcpb"), false],
+  ["tiktok-easy-v0.1.0.mcpb", path.join(repoRoot, "tiktok-easy", "tiktok-easy-v0.1.0.mcpb"), false],
+  ["youtube-easy-v0.1.0.mcpb", path.join(repoRoot, "youtube-easy", "youtube-easy-v0.1.0.mcpb"), false],
 ];
 
-const entries = sources.map(([name, source]) => ({ name, data: fs.readFileSync(source) }));
+const entries = sources.map(([name, source, text]) => ({
+  name,
+  data: text
+    ? Buffer.from(fs.readFileSync(source, "utf8").replace(/\r\n?/g, "\n"))
+    : fs.readFileSync(source),
+}));
 const checksummed = entries.filter((entry) => entry.name === "install-easy-mcp.mjs" || entry.name.endsWith(".mcpb"));
 entries.push({
   name: "SHA256SUMS.txt",
