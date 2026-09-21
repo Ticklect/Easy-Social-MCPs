@@ -15,6 +15,10 @@ This repository includes all four ready-to-use MCPs:
 | [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/tiktok-easy-v0.1.0/tiktok-easy-v0.1.0.mcpb) |
 | [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/youtube-easy-v0.1.0/youtube-easy-v0.1.0.mcpb) |
 
+### Want all four?
+
+**[Download Easy Social MCPs All-in-One v0.1.0](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-social-mcps-v0.1.0/easy-social-mcps-v0.1.0.zip)**. It contains the installer plus Reddit Easy, X Easy, TikTok Easy, and YouTube Easy in one ZIP. Extract it once and follow the included README; no separate MCPB downloads are needed.
+
 ### Easiest setup: give this prompt to your coding agent
 
 Copy a `.mcpb` link from the table above, replace `<MCPB LINK>` below, and paste the whole prompt into Codex or Claude Code:

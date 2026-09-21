@@ -1,0 +1,57 @@
+name: Build Easy Social MCPs All-in-One
+
+on:
+  push:
+    branches: [main]
+    tags: ["easy-social-mcps-v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm --prefix easy-social-mcps run check
+      - run: npm --prefix easy-social-mcps test
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/easy-social-mcps-v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm --prefix easy-social-mcps run build
+      - name: Refuse to overwrite an existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; refusing to overwrite it."
+            exit 1
+          fi
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            easy-social-mcps/easy-social-mcps-v0.1.0.zip \
+            easy-social-mcps/easy-social-mcps-v0.1.0.zip.sha256 \
+            --verify-tag \
+            --title "Easy Social MCPs All-in-One v0.1.0" \
+            --notes "One download containing the Easy MCP Installer plus Reddit Easy, X Easy, TikTok Easy, and YouTube Easy. Extract once and install any or all services into Codex or Claude Code without npm install or manual MCP configuration."
