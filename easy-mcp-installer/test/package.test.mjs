@@ -8,34 +8,45 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const expectedVersion = "0.1.1";
 
-function zipNames(file) {
+function zipEntries(file) {
   const data = fs.readFileSync(file);
   const end = data.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
   assert.notEqual(end, -1);
   const count = data.readUInt16LE(end + 10);
   let offset = data.readUInt32LE(end + 16);
-  const names = [];
+  const entries = new Map();
   for (let index = 0; index < count; index++) {
     assert.equal(data.readUInt32LE(offset), 0x02014b50);
+    const compressedSize = data.readUInt32LE(offset + 20);
     const nameLength = data.readUInt16LE(offset + 28);
     const extraLength = data.readUInt16LE(offset + 30);
     const commentLength = data.readUInt16LE(offset + 32);
-    names.push(data.subarray(offset + 46, offset + 46 + nameLength).toString("utf8"));
+    const localOffset = data.readUInt32LE(offset + 42);
+    const name = data.subarray(offset + 46, offset + 46 + nameLength).toString("utf8");
+    const localNameLength = data.readUInt16LE(localOffset + 26);
+    const localExtraLength = data.readUInt16LE(localOffset + 28);
+    const start = localOffset + 30 + localNameLength + localExtraLength;
+    entries.set(name, data.subarray(start, start + compressedSize));
     offset += 46 + nameLength + extraLength + commentLength;
   }
-  return names;
+  return entries;
 }
 
 test("build creates a portable installer ZIP and matching checksum", () => {
   const output = fs.mkdtempSync(path.join(os.tmpdir(), "easy-mcp-installer-build-"));
   const run = spawnSync(process.execPath, [path.join(root, "scripts", "build.mjs"), "--out", output], { encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr || run.stdout);
-  const archive = path.join(output, "easy-mcp-installer-v0.1.0.zip");
+  const archive = path.join(output, `easy-mcp-installer-v${expectedVersion}.zip`);
   const checksum = `${archive}.sha256`;
-  assert.deepEqual(zipNames(archive), ["install-easy-mcp.mjs", "LICENSE", "package.json", "README.md"]);
+  const entries = zipEntries(archive);
+  assert.deepEqual([...entries.keys()], ["install-easy-mcp.mjs", "LICENSE", "package.json", "README.md"]);
+  for (const [name, contents] of entries) assert.equal(contents.includes(13), false, `${name} must use portable LF line endings`);
   const hash = crypto.createHash("sha256").update(fs.readFileSync(archive)).digest("hex");
-  assert.equal(fs.readFileSync(checksum, "utf8"), `${hash}  easy-mcp-installer-v0.1.0.zip\n`);
+  assert.equal(fs.readFileSync(checksum, "utf8"), `${hash}  easy-mcp-installer-v${expectedVersion}.zip\n`);
+  assert.deepEqual(fs.readFileSync(path.join(root, `easy-mcp-installer-v${expectedVersion}.zip`)), fs.readFileSync(archive), "committed installer ZIP must match a clean rebuild");
+  assert.equal(fs.readFileSync(path.join(root, `easy-mcp-installer-v${expectedVersion}.zip.sha256`), "utf8"), fs.readFileSync(checksum, "utf8"), "committed installer checksum must match a clean rebuild");
 });
 
 test("release workflow tests all desktop platforms and refuses overwrite", () => {
@@ -44,6 +55,8 @@ test("release workflow tests all desktop platforms and refuses overwrite", () =>
   assert.match(workflow, /macos-latest/);
   assert.match(workflow, /ubuntu-latest/);
   assert.match(workflow, /tags:\s*\["easy-mcp-installer-v\*"\]/);
+  assert.match(workflow, /package\.json/);
+  assert.match(workflow, /easy-mcp-installer-v\$VERSION/);
   assert.match(workflow, /already exists.*refusing to overwrite/is);
   assert.doesNotMatch(workflow, /--clobber/);
 });

@@ -22,7 +22,7 @@ const repositoryRoot = path.dirname(installerRoot);
 const bundles = [
   path.join(repositoryRoot, "reddit-easy.mcpb"),
   path.join(repositoryRoot, "x-easy", "x-easy-v0.1.0.mcpb"),
-  path.join(repositoryRoot, "tiktok-easy", "tiktok-easy-v0.1.0.mcpb"),
+  path.join(repositoryRoot, "tiktok-easy", "tiktok-easy-v0.1.1.mcpb"),
   path.join(repositoryRoot, "youtube-easy", "youtube-easy-v0.1.0.mcpb"),
 ];
 
@@ -206,6 +206,215 @@ test("replace removes an existing registration before adding the managed server"
   assert.deepEqual(actions[0].slice(1), ["mcp", "remove", "youtube-easy", "--scope", "user"]);
 });
 
+test("replace restores the prior registration when adding the managed server fails", () => {
+  const dataRoot = tempRoot();
+  const calls = [];
+  let registration = { command: "old-node", args: ["old-server.js", "--legacy"] };
+  const runner = (command, args) => {
+    calls.push([command, ...args]);
+    const verb = args[1];
+    if (verb === "get") {
+      return { status: 0, stdout: JSON.stringify({ transport: { type: "stdio", ...registration } }), stderr: "" };
+    }
+    if (verb === "remove") {
+      registration = null;
+      return { status: 0, stdout: "removed", stderr: "" };
+    }
+    if (verb === "add") {
+      const separator = args.indexOf("--");
+      const commandLine = args.slice(separator + 1);
+      if (commandLine[0] === process.execPath) return { status: 1, stdout: "", stderr: "add failed" };
+      registration = { command: commandLine[0], args: commandLine.slice(1) };
+      return { status: 0, stdout: "restored", stderr: "" };
+    }
+    throw new Error(`Unexpected fake command: ${[command, ...args].join(" ")}`);
+  };
+
+  assert.throws(() => installBundles([bundles[3]], {
+    dataRoot,
+    hosts: ["codex"],
+    replace: true,
+    runner,
+    resolveCommand: (name) => name,
+  }), /could not register.*add failed/i);
+
+  assert.deepEqual(registration, { command: "old-node", args: ["old-server.js", "--legacy"] });
+  assert.deepEqual(calls.filter((call) => ["remove", "add"].includes(call[2])).map((call) => call.slice(1)), [
+    ["mcp", "remove", "youtube-easy"],
+    ["mcp", "add", "youtube-easy", "--", process.execPath, path.join(dataRoot, "servers", "youtube-easy", "0.1.0", "dist", "server.js")],
+    ["mcp", "add", "youtube-easy", "--", "old-node", "old-server.js", "--legacy"],
+  ]);
+});
+
+test("Codex rollback preserves environment variables when replacement add fails", () => {
+  const dataRoot = tempRoot();
+  const calls = [];
+  let registration = {
+    command: "old-node",
+    args: ["old-server.js", "--legacy"],
+    env: { API_TOKEN: "token-value", MODE: "legacy" },
+  };
+  const runner = (command, args) => {
+    calls.push([command, ...args]);
+    const verb = args[1];
+    if (verb === "get") {
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          name: "youtube-easy",
+          enabled: true,
+          disabled_reason: null,
+          transport: { type: "stdio", ...registration, env_vars: [], cwd: null },
+          enabled_tools: null,
+          disabled_tools: null,
+          startup_timeout_sec: null,
+          tool_timeout_sec: null,
+        }),
+        stderr: "",
+      };
+    }
+    if (verb === "remove") {
+      registration = null;
+      return { status: 0, stdout: "removed", stderr: "" };
+    }
+    if (verb === "add") {
+      const separator = args.indexOf("--");
+      const commandLine = args.slice(separator + 1);
+      if (commandLine[0] === process.execPath) return { status: 1, stdout: "", stderr: "add failed" };
+      const env = {};
+      for (let index = 2; index < separator; index++) {
+        if (args[index] !== "--env") continue;
+        const [key, ...value] = args[++index].split("=");
+        env[key] = value.join("=");
+      }
+      registration = { command: commandLine[0], args: commandLine.slice(1), env };
+      return { status: 0, stdout: "restored", stderr: "" };
+    }
+    throw new Error(`Unexpected fake command: ${[command, ...args].join(" ")}`);
+  };
+
+  assert.throws(() => installBundles([bundles[3]], {
+    dataRoot,
+    hosts: ["codex"],
+    replace: true,
+    runner,
+    resolveCommand: (name) => name,
+  }), /could not register.*add failed/i);
+
+  assert.deepEqual(registration, {
+    command: "old-node",
+    args: ["old-server.js", "--legacy"],
+    env: { API_TOKEN: "token-value", MODE: "legacy" },
+  });
+});
+
+test("Codex replacement refuses unsupported registration metadata before removal", () => {
+  const dataRoot = tempRoot();
+  const calls = [];
+  const runner = (command, args) => {
+    calls.push([command, ...args]);
+    if (args[1] === "get") {
+      return {
+        status: 0,
+        stdout: JSON.stringify({
+          name: "youtube-easy",
+          enabled: true,
+          disabled_reason: null,
+          transport: {
+            type: "stdio",
+            command: "old-node",
+            args: ["old-server.js"],
+            env: { API_TOKEN: "token-value" },
+            env_vars: [],
+            cwd: "C:\\legacy-workdir",
+          },
+          enabled_tools: null,
+          disabled_tools: null,
+          startup_timeout_sec: 12,
+          tool_timeout_sec: null,
+        }),
+        stderr: "",
+      };
+    }
+    return { status: 0, stdout: "ok", stderr: "" };
+  };
+
+  assert.throws(() => installBundles([bundles[3]], {
+    dataRoot,
+    hosts: ["codex"],
+    replace: true,
+    runner,
+    resolveCommand: (name) => name,
+  }), /could not safely replace.*could not be preserved/i);
+  assert.equal(calls.some((call) => call[2] === "remove"), false);
+});
+
+test("Claude replacement refuses environment or unknown metadata before removal", () => {
+  for (const extra of [
+    "Environment:\n  API_TOKEN: ***\n",
+    "Working Directory: C:\\legacy-workdir\n",
+  ]) {
+    const dataRoot = tempRoot();
+    const calls = [];
+    const runner = (command, args) => {
+      calls.push([command, ...args]);
+      if (args[1] === "get") {
+        return {
+          status: 0,
+          stdout: `youtube-easy:\nScope: User\nStatus: connected\nType: stdio\nCommand: old-node\nArgs: old-server.js\n${extra}`,
+          stderr: "",
+        };
+      }
+      return { status: 0, stdout: "ok", stderr: "" };
+    };
+
+    assert.throws(() => installBundles([bundles[3]], {
+      dataRoot,
+      hosts: ["claude"],
+      replace: true,
+      runner,
+      resolveCommand: (name) => name,
+    }), /could not safely replace.*could not be preserved/i);
+    assert.equal(calls.some((call) => call[2] === "remove"), false, extra);
+  }
+});
+
+test("Claude replacement accepts real user-config output with an empty Environment section", () => {
+  const dataRoot = tempRoot();
+  const calls = [];
+  const runner = (command, args) => {
+    calls.push([command, ...args]);
+    if (args[1] === "get") {
+      return {
+        status: 0,
+        stdout: [
+          "youtube-easy:",
+          "  Scope: User config (available in all your projects)",
+          "  Status: connected",
+          "  Type: stdio",
+          "  Command: old-node",
+          "  Args: old-server.js --legacy",
+          "  Environment:",
+          "",
+        ].join("\n"),
+        stderr: "",
+      };
+    }
+    return { status: 0, stdout: "ok", stderr: "" };
+  };
+
+  const result = installBundles([bundles[3]], {
+    dataRoot,
+    hosts: ["claude"],
+    replace: true,
+    runner,
+    resolveCommand: (name) => name,
+  });
+
+  assert.equal(result[0].registrations.claude, "installed");
+  assert.equal(calls.some((call) => call[2] === "remove"), true);
+});
+
 test("CLI arguments require at least one host and bundle", () => {
   assert.deepEqual(parseArguments(["--host", "both", "one.mcpb"]), {
     bundles: [path.resolve("one.mcpb")], hosts: ["codex", "claude"], replace: false, dataRoot: undefined,
@@ -222,17 +431,38 @@ test("requires Node 22 or newer before installation", () => {
 });
 
 test("wraps Windows npm command shims through the native command processor", () => {
-  assert.deepEqual(wrapHostExecutable("C:\\tools\\codex.cmd", {
+  const wrapped = wrapHostExecutable("C:\\tools\\codex.cmd", {
     platform: "win32",
     env: { ComSpec: "C:\\Windows\\System32\\cmd.exe" },
-  }), {
-    command: "C:\\Windows\\System32\\cmd.exe",
-    prefix: ["/d", "/s", "/c", "C:\\tools\\codex.cmd"],
   });
+  assert.equal(wrapped.command, "C:\\Windows\\System32\\cmd.exe");
+  assert.deepEqual(wrapped.prefix, ["/d", "/v:off", "/s", "/c"]);
+  assert.equal(typeof wrapped.buildArgs, "function");
   assert.deepEqual(wrapHostExecutable("C:\\tools\\codex.exe", { platform: "win32", env: {} }), {
     command: "C:\\tools\\codex.exe",
     prefix: [],
   });
+});
+
+test("Windows cmd and bat host shims with spaces execute correctly", { skip: process.platform !== "win32" }, () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "easy mcp shim "));
+  const dump = path.join(root, "dump-args.mjs");
+  fs.writeFileSync(dump, "console.log(JSON.stringify(process.argv.slice(2)));\n");
+  const cases = [
+    ["space value", "a&b", "100%PATH%", "caret^value", "a|b", "a<b", "a>b", "(paren)"],
+    ["", 'quote"value', "trail\\", "semi;colon", "comma,value", "star*question?"],
+  ];
+  for (const extension of [".cmd", ".bat"]) {
+    const executable = path.join(root, `codex host${extension}`);
+    for (const expected of cases) {
+      const forwarded = expected.map((_, index) => `"%~${index + 1}"`).join(" ");
+      fs.writeFileSync(executable, `@echo off\r\n"${process.execPath}" "${dump}" ${forwarded}\r\n`);
+      const wrapped = wrapHostExecutable(executable, { platform: "win32", env: process.env });
+      const run = spawnSync(wrapped.command, wrapped.buildArgs(expected), { encoding: "utf8", windowsHide: true, ...wrapped.spawnOptions });
+      assert.equal(run.status, 0, `${extension}: ${run.stderr || run.stdout}`);
+      assert.deepEqual(JSON.parse(run.stdout.trim()), expected, `${extension}: ${JSON.stringify(expected)}`);
+    }
+  }
 });
 
 test("verifies the registered command and entry path instead of trusting a receipt", () => {
@@ -243,4 +473,5 @@ test("verifies the registered command and entry path instead of trusting a recei
   const claude = { status: 0, stdout: `Scope: User\nType: stdio\nCommand: ${process.execPath}\nArgs: ${entry}\n` };
   assert.equal(registrationMatches("claude", claude, entry), true);
   assert.equal(registrationMatches("claude", { ...claude, stdout: "Command: wrong\nArgs: wrong\n" }, entry), false);
+  assert.equal(registrationMatches("claude", { ...claude, stdout: `Command: ${process.execPath}\nArgs: ${entry}.backup\n` }, entry), false);
 });

@@ -24,6 +24,18 @@ jobs:
         with:
           node-version: "22"
 
+      - name: Check immutable release state
+        id: release
+        run: |
+          set -euo pipefail
+          tag="reddit-easy-v0.3.1"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$tag already exists; refusing to mutate its published artifacts."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Verify source
         run: |
           set -euo pipefail
@@ -34,6 +46,7 @@ jobs:
           cmp src/coordination.js dist/coordination.js
 
       - name: Package v0.3.1
+        if: steps.release.outputs.exists != 'true'
         run: |
           set -euo pipefail
           rm -f reddit-easy-v0.3.1.mcpb reddit-easy-v0.3.1-source.zip reddit-easy-v0.3.1.mcpb.sha256
@@ -56,6 +69,7 @@ jobs:
           NODE
 
       - name: Commit current artifacts
+        if: steps.release.outputs.exists != 'true'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -67,6 +81,7 @@ jobs:
           fi
 
       - name: Publish release
+        if: steps.release.outputs.exists != 'true'
         run: |
           set -euo pipefail
           tag="reddit-easy-v0.3.1"
@@ -82,8 +97,4 @@ jobs:
 
           Existing 10-minute duplicate protection, write spacing, URL validation, loopback-only CDP checks, and credential handling remain in place.
           EOF
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" reddit-easy-v0.3.1.mcpb reddit-easy-v0.3.1-source.zip reddit-easy-v0.3.1.mcpb.sha256 --clobber
-          else
-            gh release create "$tag"               --target "$target"               --title "Reddit Easy v0.3.1"               --notes-file /tmp/notes.md               reddit-easy-v0.3.1.mcpb               reddit-easy-v0.3.1-source.zip               reddit-easy-v0.3.1.mcpb.sha256
-          fi
+          gh release create "$tag"               --target "$target"               --title "Reddit Easy v0.3.1"               --notes-file /tmp/notes.md               reddit-easy-v0.3.1.mcpb               reddit-easy-v0.3.1-source.zip               reddit-easy-v0.3.1.mcpb.sha256

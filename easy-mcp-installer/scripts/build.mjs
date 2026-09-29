@@ -4,7 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const version = "0.1.0";
+const version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
 const base = `easy-mcp-installer-v${version}`;
 
 function crcTable() {
@@ -74,7 +74,10 @@ if (outputIndex >= 0 && !process.argv[outputIndex + 1]) throw new Error("--out r
 const output = path.resolve(outputIndex >= 0 ? process.argv[outputIndex + 1] : root);
 fs.mkdirSync(output, { recursive: true });
 const names = ["LICENSE", "README.md", "install-easy-mcp.mjs", "package.json"];
-const entries = names.map((name) => ({ name, data: fs.readFileSync(path.join(root, name)) }));
+const entries = names.map((name) => ({
+  name,
+  data: Buffer.from(fs.readFileSync(path.join(root, name), "utf8").replace(/\r\n?/g, "\n")),
+}));
 const archive = path.join(output, `${base}.zip`);
 fs.writeFileSync(archive, makeZip(entries));
 const hash = crypto.createHash("sha256").update(fs.readFileSync(archive)).digest("hex");

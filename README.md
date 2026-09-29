@@ -12,12 +12,12 @@ This repository includes all four ready-to-use MCPs:
 | --- | --- | --- |
 | [Reddit Easy](./README.md) | `reddit_login` | [`reddit-easy-v0.3.1.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/reddit-easy-v0.3.1/reddit-easy-v0.3.1.mcpb) |
 | [X Easy](./x-easy/README.md) | `x_login` | [`x-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/x-easy-v0.1.0/x-easy-v0.1.0.mcpb) |
-| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/tiktok-easy-v0.1.0/tiktok-easy-v0.1.0.mcpb) |
+| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.1.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/tiktok-easy-v0.1.1/tiktok-easy-v0.1.1.mcpb) |
 | [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/youtube-easy-v0.1.0/youtube-easy-v0.1.0.mcpb) |
 
 ### Want all four?
 
-**[Download Easy Social MCPs All-in-One v0.1.0](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-social-mcps-v0.1.0/easy-social-mcps-v0.1.0.zip)**. It contains the installer plus Reddit Easy, X Easy, TikTok Easy, and YouTube Easy in one ZIP. Extract it once and follow the included README; no separate MCPB downloads are needed.
+**[Download Easy Social MCPs All-in-One v0.1.1](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-social-mcps-v0.1.1/easy-social-mcps-v0.1.1.zip)**. It contains the installer plus Reddit Easy, X Easy, TikTok Easy, and YouTube Easy in one ZIP. Extract it once and follow the included README; no separate MCPB downloads are needed.
 
 ### Easiest setup: give this prompt to your coding agent
 
@@ -28,7 +28,7 @@ Install this Easy Social MCP into the coding client you are currently running in
 <MCPB LINK>
 
 Use the official Easy MCP Installer from:
-https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-mcp-installer-v0.1.0/easy-mcp-installer-v0.1.0.zip
+https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-mcp-installer-v0.1.1/easy-mcp-installer-v0.1.1.zip
 
 Download both files to a temporary folder, verify the release checksums, extract the installer, and run it for this client only: use --host codex when running in Codex or --host claude when running in Claude Code. Do not run npm install and do not ask me to edit MCP configuration manually. Verify that the MCP registration succeeded, tell me whether I need to restart the client, and remove only the temporary installer/download files. Do not start a login, upload, post, delete, or other external action yet.
 ```
@@ -37,14 +37,14 @@ For example, start the prompt with “Install YouTube Easy into my Codex” and 
 
 ### Manual installation in Codex or Claude Code
 
-You need **two downloads**: the [Easy MCP Installer ZIP](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-mcp-installer-v0.1.0/easy-mcp-installer-v0.1.0.zip), plus the `.mcpb` file for each MCP you want from the table above. You do not need the source ZIPs.
+You need **two downloads**: the [Easy MCP Installer ZIP](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-mcp-installer-v0.1.1/easy-mcp-installer-v0.1.1.zip), plus the `.mcpb` file for each MCP you want from the table above. You do not need the source ZIPs.
 
 Extract the installer ZIP, place the downloaded `.mcpb` files beside `install-easy-mcp.mjs`, then run one command:
 
 ```text
 node install-easy-mcp.mjs --host codex youtube-easy-v0.1.0.mcpb
 node install-easy-mcp.mjs --host claude youtube-easy-v0.1.0.mcpb
-node install-easy-mcp.mjs --host both reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.0.mcpb youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.1.mcpb youtube-easy-v0.1.0.mcpb
 ```
 
 Restart Codex or Claude Code afterward. The first command installs only into Codex, the second only into Claude Code, and `--host both` installs into both.
@@ -67,7 +67,7 @@ I also added **[TikTok Easy](./tiktok-easy/README.md)** for TikTok. It packages 
 
 It supports posting and native scheduling, likes, follows, deletion, profile/avatar changes, analytics, saved performance history, and hook analysis.
 
-[Download TikTok Easy v0.1.0](../../releases/tag/tiktok-easy-v0.1.0)
+[Download TikTok Easy v0.1.1](../../releases/tag/tiktok-easy-v0.1.1)
 
 > TikTok Easy is an unofficial browser-session integration and carries platform/account risk. Read its [security notes and attribution](./tiktok-easy/README.md) before using it.
 

@@ -4,7 +4,7 @@ This archive contains the Easy MCP Installer and all four ready-to-use bundles:
 
 - Reddit Easy v0.3.1
 - X Easy v0.1.0
-- TikTok Easy v0.1.0
+- TikTok Easy v0.1.1
 - YouTube Easy v0.1.0
 
 It requires Node.js 22 or newer. It does not run `npm install`.
@@ -14,9 +14,9 @@ It requires Node.js 22 or newer. It does not run `npm install`.
 Extract the ZIP, open a terminal in the extracted directory, and run one command:
 
 ```text
-node install-easy-mcp.mjs --host codex reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.0.mcpb youtube-easy-v0.1.0.mcpb
-node install-easy-mcp.mjs --host claude reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.0.mcpb youtube-easy-v0.1.0.mcpb
-node install-easy-mcp.mjs --host both reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.0.mcpb youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host codex reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.1.mcpb youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host claude reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.1.mcpb youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.1.mcpb youtube-easy-v0.1.0.mcpb
 ```
 
 Use `--host codex`, `--host claude`, or `--host both`. Restart the selected client after installation. Then prompts such as “Start Reddit login” or “Start YouTube login” work in a new chat.

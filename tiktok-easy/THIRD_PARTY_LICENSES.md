@@ -1,6 +1,6 @@
 # Third-party notices
 
-TikTok Easy v0.1.0 packages and adapts:
+TikTok Easy v0.1.1 packages and adapts:
 
 - **0xArtex/tiktok-mcp**
 - Upstream commit: `99ef0359a55ff64b7d4a913369cca5c7bfd2683b`

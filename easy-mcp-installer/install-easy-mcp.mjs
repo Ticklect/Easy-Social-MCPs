@@ -82,7 +82,9 @@ function zipEntries(buffer) {
     if (total > MAX_UNPACKED_BYTES) throw new Error("MCPB expands beyond the 512 MiB safety limit.");
     if (!isDirectory) {
       const compressed = buffer.subarray(start, finish);
-      const data = method === 0 ? Buffer.from(compressed) : zlib.inflateRawSync(compressed, { maxOutputLength: uncompressedSize });
+      const data = method === 0
+        ? Buffer.from(compressed)
+        : zlib.inflateRawSync(compressed, { maxOutputLength: Math.max(1, uncompressedSize) });
       if (data.length !== uncompressedSize) throw new Error(`MCPB size mismatch for ${name}.`);
       if (crc32(data) !== expectedCrc) throw new Error(`MCPB CRC mismatch for ${name}.`);
       if (entries.has(name)) throw new Error(`MCPB contains duplicate path: ${name}`);
@@ -172,8 +174,8 @@ function extractBundle(bundle, dataRoot) {
   return { target, entryPath: path.join(target, ...bundle.entryPoint.split("/")) };
 }
 
-function defaultRunner(command, args) {
-  const result = spawnSync(command, args, { encoding: "utf8", windowsHide: true });
+function defaultRunner(command, args, options = {}) {
+  const result = spawnSync(command, args, { encoding: "utf8", windowsHide: true, ...options });
   if (result.error?.code === "ENOENT") return { status: 127, stdout: "", stderr: `${command} was not found.` };
   if (result.error) throw result.error;
   return { status: result.status ?? 1, stdout: result.stdout || "", stderr: result.stderr || "" };
@@ -188,7 +190,28 @@ export function wrapHostExecutable(executable, { platform = process.platform, en
     return { command: powershell, prefix: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", executable] };
   }
   if (platform === "win32" && [".cmd", ".bat"].includes(extension)) {
-    return { command: env.ComSpec || "cmd.exe", prefix: ["/d", "/s", "/c", executable] };
+    const wrapped = {
+      command: env.ComSpec || "cmd.exe",
+      prefix: ["/d", "/v:off", "/s", "/c"],
+      buildArgs(args) {
+        const childEnv = { ...env, EASY_MCP_HOST_SHIM: executable };
+        const forwarded = args.map((value, index) => {
+          const argument = String(value);
+          if (/[\r\n\0]/.test(argument)) throw new Error("Host command arguments cannot contain newlines or NUL bytes.");
+          if (!argument) return '""';
+          const key = `EASY_MCP_HOST_ARG_${index}`;
+          childEnv[key] = argument
+            .replaceAll('"', '""')
+            .replace(/(\\+)$/, '$1$1');
+          return `"%${key}%"`;
+        });
+        wrapped.spawnOptions = { windowsVerbatimArguments: true, env: childEnv };
+        const shellCommand = [`"%EASY_MCP_HOST_SHIM%"`, ...forwarded].join(" ");
+        return ["/d", "/v:off", "/s", "/c", `"${shellCommand}"`];
+      },
+      spawnOptions: { windowsVerbatimArguments: true, env: { ...env, EASY_MCP_HOST_SHIM: executable } },
+    };
+    return wrapped;
   }
   return { command: executable, prefix: [] };
 }
@@ -210,14 +233,15 @@ function defaultResolveCommand(name) {
   const executable = findHostExecutable(name);
   if (!executable) throw new Error(`${name} is not installed or is not on PATH.`);
   const wrapped = wrapHostExecutable(executable);
-  const probe = defaultRunner(wrapped.command, [...wrapped.prefix, "--version"]);
+  const probe = runResolved(defaultRunner, wrapped, ["--version"]);
   if (probe.status !== 0) throw new Error(`${name} was found but could not run: ${probe.stderr || probe.stdout}`);
   return wrapped;
 }
 
 function runResolved(runner, resolved, args) {
   if (typeof resolved === "string") return runner(resolved, args);
-  return runner(resolved.command, [...(resolved.prefix || []), ...args]);
+  const finalArgs = typeof resolved.buildArgs === "function" ? resolved.buildArgs(args) : [...(resolved.prefix || []), ...args];
+  return runner(resolved.command, finalArgs, resolved.spawnOptions || {});
 }
 
 function registrationArgs(host, action, name, entryPath) {
@@ -254,8 +278,95 @@ export function registrationMatches(host, result, entryPath) {
   const command = result.stdout.match(/^\s*Command:\s*(.+?)\s*$/im)?.[1];
   const args = result.stdout.match(/^\s*Args:\s*(.+?)\s*$/im)?.[1];
   if (comparablePath(command) !== expectedCommand || !args) return false;
-  const normalizedArgs = process.platform === "win32" ? args.toLowerCase() : args;
-  return normalizedArgs.includes(expectedEntry);
+  return comparablePath(args) === expectedEntry;
+}
+
+function parseDisplayedArgs(value) {
+  const args = [];
+  let current = "";
+  let quote;
+  let started = false;
+  for (const character of String(value || "")) {
+    if (quote) {
+      if (character === quote) quote = undefined;
+      else current += character;
+      started = true;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+      started = true;
+    } else if (/\s/.test(character)) {
+      if (started) {
+        args.push(current);
+        current = "";
+        started = false;
+      }
+    } else {
+      current += character;
+      started = true;
+    }
+  }
+  if (started) args.push(current);
+  return args;
+}
+
+function previousRegistration(host, result) {
+  if (result?.status !== 0) return null;
+  if (host === "codex") {
+    try {
+      const configured = JSON.parse(result.stdout);
+      const allowedTopLevel = new Set([
+        "name", "enabled", "disabled_reason", "transport", "enabled_tools", "disabled_tools", "startup_timeout_sec", "tool_timeout_sec",
+      ]);
+      if (Object.keys(configured).some((key) => !allowedTopLevel.has(key))) return null;
+      if (configured.enabled === false || configured.disabled_reason != null) return null;
+      if (configured.enabled_tools != null || configured.disabled_tools != null) return null;
+      if (configured.startup_timeout_sec != null || configured.tool_timeout_sec != null) return null;
+      const transport = configured?.transport;
+      if (transport?.type !== "stdio" || typeof transport.command !== "string" || !Array.isArray(transport.args)) return null;
+      const allowedTransport = new Set(["type", "command", "args", "env", "env_vars", "cwd"]);
+      if (Object.keys(transport).some((key) => !allowedTransport.has(key))) return null;
+      if (transport.cwd != null || (transport.env_vars != null && (!Array.isArray(transport.env_vars) || transport.env_vars.length > 0))) return null;
+      if (transport.args.some((value) => typeof value !== "string")) return null;
+      if (transport.env != null && (typeof transport.env !== "object" || Array.isArray(transport.env))) return null;
+      const env = {};
+      for (const [key, value] of Object.entries(transport.env || {})) {
+        if (typeof value !== "string") return null;
+        env[key] = value;
+      }
+      return { command: transport.command, args: [...transport.args], env };
+    } catch {
+      return null;
+    }
+  }
+  const lines = result.stdout.split(/\r?\n/);
+  const environmentIndex = lines.findIndex((line) => /^\s*Environment:\s*$/i.test(line));
+  if (environmentIndex >= 0) {
+    const environmentIndent = lines[environmentIndex].match(/^\s*/)?.[0].length || 0;
+    for (const line of lines.slice(environmentIndex + 1)) {
+      if (!line.trim()) continue;
+      const indent = line.match(/^\s*/)?.[0].length || 0;
+      if (indent > environmentIndent) return null;
+      break;
+    }
+  }
+  const supportedLabels = new Set(["Scope", "Status", "Type", "Command", "Args", "Environment"]);
+  for (const line of lines) {
+    const label = line.match(/^\s*([A-Za-z][A-Za-z ]*):\s*/)?.[1]?.trim();
+    if (label && !supportedLabels.has(label)) return null;
+  }
+  const scope = result.stdout.match(/^\s*Scope:\s*(.+?)\s*$/im)?.[1];
+  const type = result.stdout.match(/^\s*Type:\s*(.+?)\s*$/im)?.[1];
+  const command = result.stdout.match(/^\s*Command:\s*(.+?)\s*$/im)?.[1];
+  const argsLine = result.stdout.match(/^\s*Args:\s*(.*?)\s*$/im)?.[1] ?? "";
+  const normalizedScope = scope?.toLowerCase();
+  if (!command || (scope && normalizedScope !== "user" && !normalizedScope.startsWith("user config")) || (type && type.toLowerCase() !== "stdio")) return null;
+  return { command, args: parseDisplayedArgs(argsLine), env: {} };
+}
+
+function restoreArgs(host, name, previous) {
+  const environment = Object.entries(previous.env || {}).flatMap(([key, value]) => ["--env", `${key}=${value}`]);
+  if (host === "claude") return ["mcp", "add", "--scope", "user", "--transport", "stdio", ...environment, name, "--", previous.command, ...previous.args];
+  return ["mcp", "add", ...environment, name, "--", previous.command, ...previous.args];
 }
 
 function missingRegistration(result) {
@@ -270,10 +381,13 @@ function registerHost(bundle, entryPath, { dataRoot, host, replace, runner, reso
   try { managed = JSON.parse(fs.readFileSync(receipt, "utf8")); } catch {}
   const desired = { name: bundle.name, version: bundle.version, sha256: bundle.sha256, entryPath };
   const get = runResolved(runner, executable, registrationArgs(host, "get", bundle.name));
+  let previous;
   if (get.status === 0) {
     const sameReceipt = managed?.sha256 === desired.sha256 && comparablePath(managed.entryPath) === comparablePath(entryPath);
     if (!replace && sameReceipt && registrationMatches(host, get, entryPath)) return "already-installed";
     if (!replace) throw new Error(`${bundle.name} already exists in ${host}. Re-run with --replace to replace that registration.`);
+    previous = previousRegistration(host, get);
+    if (!previous) throw new Error(`Could not safely replace ${bundle.name} in ${host}: existing registration could not be preserved.`);
     const removed = runResolved(runner, executable, registrationArgs(host, "remove", bundle.name));
     if (removed.status !== 0) throw new Error(`Could not remove existing ${bundle.name} registration from ${host}: ${removed.stderr || removed.stdout}`);
   } else if (missingRegistration(get)) {
@@ -283,7 +397,15 @@ function registerHost(bundle, entryPath, { dataRoot, host, replace, runner, reso
     throw new Error(`Could not inspect ${bundle.name} in ${host}: ${get.stderr || get.stdout || `exit ${get.status}`}`);
   }
   const added = runResolved(runner, executable, registrationArgs(host, "add", bundle.name, entryPath));
-  if (added.status !== 0) throw new Error(`Could not register ${bundle.name} with ${host}: ${added.stderr || added.stdout}`);
+  if (added.status !== 0) {
+    if (previous) {
+      const restored = runResolved(runner, executable, restoreArgs(host, bundle.name, previous));
+      if (restored.status !== 0) {
+        throw new Error(`Could not register ${bundle.name} with ${host}: ${added.stderr || added.stdout}. Restoring the previous registration also failed: ${restored.stderr || restored.stdout}`);
+      }
+    }
+    throw new Error(`Could not register ${bundle.name} with ${host}: ${added.stderr || added.stdout}`);
+  }
   writeJsonAtomic(receipt, { ...desired, host, installedAt: new Date().toISOString() });
   return "installed";
 }

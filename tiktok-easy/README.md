@@ -6,7 +6,7 @@ TikTok Easy packages the MIT-licensed `0xArtex/tiktok-mcp` browser-session imple
 
 ## Setup
 
-1. Import `tiktok-easy-v0.1.0.mcpb` into an MCPB-compatible host.
+1. Import `tiktok-easy-v0.1.1.mcpb` into an MCPB-compatible host.
 2. Run `tiktok_login` for the simple default account, or `tiktok_connect` for an explicitly named account.
 3. Scan the TikTok QR code and confirm login.
 4. Ask the agent to post, schedule, follow, like, manage profile details, or inspect analytics.
@@ -38,7 +38,7 @@ TikTok Easy adds Helium detection on top of the upstream Chrome/Edge/Brave/Chrom
 
 ## Attribution
 
-TikTok Easy v0.1.0 packages and lightly adapts **0xArtex/tiktok-mcp** at commit `99ef0359a55ff64b7d4a913369cca5c7bfd2683b`.
+TikTok Easy v0.1.1 packages and lightly adapts **0xArtex/tiktok-mcp** at commit `99ef0359a55ff64b7d4a913369cca5c7bfd2683b`.
 
 The upstream project is MIT licensed. Its original license is preserved in [THIRD_PARTY_LICENSES.md](./THIRD_PARTY_LICENSES.md).
 
