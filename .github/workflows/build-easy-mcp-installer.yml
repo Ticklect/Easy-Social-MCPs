@@ -36,6 +36,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Resolve and verify release version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(node -p "JSON.parse(require('fs').readFileSync('easy-mcp-installer/package.json','utf8')).version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          test "$GITHUB_REF_NAME" = "easy-mcp-installer-v$VERSION"
       - run: npm --prefix easy-mcp-installer run build
       - name: Refuse to overwrite an existing release
         env:
@@ -48,11 +55,12 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            easy-mcp-installer/easy-mcp-installer-v0.1.0.zip \
-            easy-mcp-installer/easy-mcp-installer-v0.1.0.zip.sha256 \
+            "easy-mcp-installer/easy-mcp-installer-v$VERSION.zip" \
+            "easy-mcp-installer/easy-mcp-installer-v$VERSION.zip.sha256" \
             easy-mcp-installer/install-easy-mcp.mjs \
             --verify-tag \
-            --title "Easy MCP Installer v0.1.0" \
+            --title "Easy MCP Installer v$VERSION" \
             --notes "Dependency-free user-scope installer for Reddit Easy, YouTube Easy, X Easy, and TikTok Easy in Codex and Claude Code."

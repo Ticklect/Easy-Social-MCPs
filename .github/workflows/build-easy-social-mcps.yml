@@ -24,6 +24,8 @@ jobs:
           node-version: 22
       - run: npm --prefix easy-social-mcps run check
       - run: npm --prefix easy-social-mcps test
+      - run: npm --prefix easy-mcp-installer run check
+      - run: npm --prefix easy-mcp-installer test
 
   release:
     if: startsWith(github.ref, 'refs/tags/easy-social-mcps-v')
@@ -36,6 +38,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Resolve and verify release version
+        id: version
+        shell: bash
+        run: |
+          VERSION="$(node -p "JSON.parse(require('fs').readFileSync('easy-social-mcps/package.json','utf8')).version")"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          test "$GITHUB_REF_NAME" = "easy-social-mcps-v$VERSION"
       - run: npm --prefix easy-social-mcps run build
       - name: Refuse to overwrite an existing release
         env:
@@ -48,10 +57,11 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           gh release create "$GITHUB_REF_NAME" \
-            easy-social-mcps/easy-social-mcps-v0.1.0.zip \
-            easy-social-mcps/easy-social-mcps-v0.1.0.zip.sha256 \
+            "easy-social-mcps/easy-social-mcps-v$VERSION.zip" \
+            "easy-social-mcps/easy-social-mcps-v$VERSION.zip.sha256" \
             --verify-tag \
-            --title "Easy Social MCPs All-in-One v0.1.0" \
+            --title "Easy Social MCPs All-in-One v$VERSION" \
             --notes "One download containing the Easy MCP Installer plus Reddit Easy, X Easy, TikTok Easy, and YouTube Easy. Extract once and install any or all services into Codex or Claude Code without npm install or manual MCP configuration."

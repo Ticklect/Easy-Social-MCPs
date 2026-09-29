@@ -1,4 +1,4 @@
-name: Build TikTok Easy v0.1.0
+name: Build TikTok Easy v0.1.1
 
 on:
   push:
@@ -10,6 +10,8 @@ on:
       - "tiktok-easy/THIRD_PARTY_LICENSES.md"
       - "tiktok-easy/manifest.json"
       - "tiktok-easy/patch-upstream.mjs"
+      - "tiktok-easy/scripts/**"
+      - "tiktok-easy/test/**"
       - ".github/workflows/build-tiktok-easy.yml"
   workflow_dispatch:
 
@@ -66,18 +68,19 @@ jobs:
           cp tiktok-easy/LICENSE /tmp/tiktok-easy-pkg/
           cp tiktok-easy/THIRD_PARTY_LICENSES.md /tmp/tiktok-easy-pkg/
 
-          cd /tmp/tiktok-easy-pkg
-          zip -X -q -r "$GITHUB_WORKSPACE/tiktok-easy/tiktok-easy-v0.1.0.mcpb" .
-
-          cd /tmp/tiktok-upstream
-          zip -X -q -r "$GITHUB_WORKSPACE/tiktok-easy/tiktok-easy-v0.1.0-source.zip" src package.json package-lock.json tsconfig.json README.md LICENSE SKILL.md server.json
+          node tiktok-easy/scripts/package-release.mjs \
+            --package-root /tmp/tiktok-easy-pkg \
+            --source-root /tmp/tiktok-upstream \
+            --out-dir "$GITHUB_WORKSPACE/tiktok-easy" \
+            --version 0.1.1
 
           cd "$GITHUB_WORKSPACE/tiktok-easy"
-          sha256sum tiktok-easy-v0.1.0.mcpb > tiktok-easy-v0.1.0.mcpb.sha256
-
-          unzip -q tiktok-easy-v0.1.0.mcpb -d /tmp/tiktok-easy-smoke
+          unzip -q tiktok-easy-v0.1.1.mcpb -d /tmp/tiktok-easy-smoke
           node --check /tmp/tiktok-easy-smoke/app/dist/index.js
           node --check /tmp/tiktok-easy-smoke/app/dist/server.js
+
+      - name: Verify TikTok hardening
+        run: node --test tiktok-easy/test/hardening.test.mjs
 
       - name: Smoke test MCP tools
         run: |
@@ -91,24 +94,50 @@ jobs:
           grep -q '"tiktok_login"' /tmp/tiktok-easy-smoke.out
           grep -q '"tiktok_post"' /tmp/tiktok-easy-smoke.out
 
+      - name: Guard immutable release
+        id: release_guard
+        run: |
+          set -euo pipefail
+          tag="tiktok-easy-v0.1.1"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            existing_dir="/tmp/tiktok-easy-existing-release"
+            rm -rf "$existing_dir"
+            mkdir -p "$existing_dir"
+            gh release download "$tag" --dir "$existing_dir" \
+              --pattern "tiktok-easy-v0.1.1.mcpb" \
+              --pattern "tiktok-easy-v0.1.1-source.zip" \
+              --pattern "tiktok-easy-v0.1.1.mcpb.sha256"
+            for asset in tiktok-easy-v0.1.1.mcpb tiktok-easy-v0.1.1-source.zip tiktok-easy-v0.1.1.mcpb.sha256; do
+              expected="$(sha256sum "tiktok-easy/$asset" | awk '{print $1}')"
+              printf '%s  %s\n' "$expected" "$asset" > "$existing_dir/$asset.expected.sha256"
+              (cd "$existing_dir" && sha256sum --check "$asset.expected.sha256")
+            done
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Existing $tag assets match this build; leaving the release unchanged."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Commit artifacts
+        if: steps.release_guard.outputs.exists != 'true'
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add tiktok-easy/tiktok-easy-v0.1.0.mcpb tiktok-easy/tiktok-easy-v0.1.0-source.zip tiktok-easy/tiktok-easy-v0.1.0.mcpb.sha256
+          git add tiktok-easy/tiktok-easy-v0.1.1.mcpb tiktok-easy/tiktok-easy-v0.1.1-source.zip tiktok-easy/tiktok-easy-v0.1.1.mcpb.sha256
           if ! git diff --cached --quiet; then
-            git commit -m "Publish TikTok Easy v0.1.0 artifacts"
+            git commit -m "Publish TikTok Easy v0.1.1 artifacts"
             git push origin HEAD:main
           fi
 
       - name: Publish release
+        if: steps.release_guard.outputs.exists != 'true'
         run: |
           set -euo pipefail
-          tag="tiktok-easy-v0.1.0"
+          tag="tiktok-easy-v0.1.1"
           target="$(git rev-parse HEAD)"
           cat > /tmp/tiktok-easy-notes.md <<'EOF'
-          TikTok Easy v0.1.0 packages the MIT-licensed 0xArtex/tiktok-mcp browser-session runtime into a ready-to-import MCPB.
+          TikTok Easy v0.1.1 packages the MIT-licensed 0xArtex/tiktok-mcp browser-session runtime into a ready-to-import MCPB.
 
           Import → run tiktok_login → scan the TikTok QR → done.
 
@@ -116,8 +145,4 @@ jobs:
 
           This is an unofficial browser-session integration, not the official TikTok API. Browser automation carries platform/account risk and may break when TikTok changes its web interface.
           EOF
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" tiktok-easy/tiktok-easy-v0.1.0.mcpb tiktok-easy/tiktok-easy-v0.1.0-source.zip tiktok-easy/tiktok-easy-v0.1.0.mcpb.sha256 --clobber
-          else
-            gh release create "$tag" --target "$target" --title "TikTok Easy v0.1.0" --notes-file /tmp/tiktok-easy-notes.md tiktok-easy/tiktok-easy-v0.1.0.mcpb tiktok-easy/tiktok-easy-v0.1.0-source.zip tiktok-easy/tiktok-easy-v0.1.0.mcpb.sha256
-          fi
+          gh release create "$tag" --target "$target" --title "TikTok Easy v0.1.1" --notes-file /tmp/tiktok-easy-notes.md tiktok-easy/tiktok-easy-v0.1.1.mcpb tiktok-easy/tiktok-easy-v0.1.1-source.zip tiktok-easy/tiktok-easy-v0.1.1.mcpb.sha256

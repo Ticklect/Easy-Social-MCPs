@@ -2,7 +2,7 @@
 
 Installs Reddit Easy, YouTube Easy, X Easy, or TikTok Easy into Codex and Claude Code without editing MCP configuration files or running `npm install`.
 
-[Download the latest installer release](../../../releases/tag/easy-mcp-installer-v0.1.0)
+[Download the latest installer release](../../../releases/tag/easy-mcp-installer-v0.1.1)
 
 ## Requirements
 
@@ -17,7 +17,7 @@ Extract this installer ZIP into the directory containing the downloaded bundles,
 ```text
 node install-easy-mcp.mjs --host codex youtube-easy-v0.1.0.mcpb
 node install-easy-mcp.mjs --host claude reddit-easy-v0.3.1.mcpb
-node install-easy-mcp.mjs --host both reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.0.mcpb youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.1.mcpb youtube-easy-v0.1.0.mcpb
 ```
 
 The installer safely extracts each bundle to a stable per-user application-data directory and registers its bundled Node entry point at user scope. Re-running the same installation is harmless. An existing registration that was not created by this installer is left unchanged; pass `--replace` only when you deliberately want to replace it.

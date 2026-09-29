@@ -22,7 +22,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check immutable Reddit v0.3.0 release state
+        id: reddit_release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="reddit-easy-v0.3.0"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "$tag already exists; refusing to mutate its published artifacts."
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Reconstruct and verify v0.3.0 patch
+        if: steps.reddit_release.outputs.exists != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -37,6 +51,7 @@ jobs:
           echo "f17a440b1c30c97311bd73c1f6425738396ee960b75dd22463d45255e208626a  /tmp/reddit030.patch" | sha256sum -c -
 
       - name: Build Reddit Easy v0.3.0
+        if: steps.reddit_release.outputs.exists != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -72,6 +87,7 @@ jobs:
           NODE
 
       - name: Package v0.3.0
+        if: steps.reddit_release.outputs.exists != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -99,6 +115,7 @@ jobs:
           NODE
 
       - name: Commit v0.3.0 source and artifacts
+        if: steps.reddit_release.outputs.exists != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -118,6 +135,7 @@ jobs:
           fi
 
       - name: Publish Reddit Easy v0.3.0 release
+        if: steps.reddit_release.outputs.exists != 'true'
         shell: bash
         run: |
           set -euo pipefail
@@ -135,11 +153,7 @@ jobs:
           Note: package/unit smoke tests validate the MCP and parsing locally, but Reddit can change authenticated web/API surfaces at any time.
           EOF
 
-          if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag"               reddit-easy-v0.3.0.mcpb               reddit-easy-v0.3.0-source.zip               reddit-easy-v0.3.0.mcpb.sha256               --clobber
-          else
-            gh release create "$tag"               --target "$target"               --title "Reddit Easy v0.3.0"               --notes-file /tmp/reddit-easy-v030-notes.md               reddit-easy-v0.3.0.mcpb               reddit-easy-v0.3.0-source.zip               reddit-easy-v0.3.0.mcpb.sha256
-          fi
+          gh release create "$tag"               --target "$target"               --title "Reddit Easy v0.3.0"               --notes-file /tmp/reddit-easy-v030-notes.md               reddit-easy-v0.3.0.mcpb               reddit-easy-v0.3.0-source.zip               reddit-easy-v0.3.0.mcpb.sha256
 
   keep-x-release:
     runs-on: ubuntu-latest

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import crypto from "node:crypto";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { inflateRawSync } from "node:zlib";
@@ -8,13 +9,14 @@ import test from "node:test";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageDir, "..");
-const archivePath = path.join(packageDir, "easy-social-mcps-v0.1.0.zip");
+const expectedVersion = "0.1.1";
+const archivePath = path.join(packageDir, `easy-social-mcps-v${expectedVersion}.zip`);
 const checksumPath = `${archivePath}.sha256`;
 
 const expectedBundleSources = new Map([
   ["reddit-easy-v0.3.1.mcpb", path.join(repoRoot, "reddit-easy-v0.3.1.mcpb")],
   ["x-easy-v0.1.0.mcpb", path.join(repoRoot, "x-easy", "x-easy-v0.1.0.mcpb")],
-  ["tiktok-easy-v0.1.0.mcpb", path.join(repoRoot, "tiktok-easy", "tiktok-easy-v0.1.0.mcpb")],
+  ["tiktok-easy-v0.1.1.mcpb", path.join(repoRoot, "tiktok-easy", "tiktok-easy-v0.1.1.mcpb")],
   ["youtube-easy-v0.1.0.mcpb", path.join(repoRoot, "youtube-easy", "youtube-easy-v0.1.0.mcpb")],
 ]);
 
@@ -51,13 +53,18 @@ function sha256(buffer) {
 }
 
 test("all-in-one build packages the installer and exact released bytes for all four MCPs reproducibly", () => {
-  const first = spawnSync(process.execPath, ["scripts/build.mjs"], { cwd: packageDir, encoding: "utf8" });
+  const output = fs.mkdtempSync(path.join(os.tmpdir(), "easy-social-mcps-build-"));
+  const builtArchivePath = path.join(output, `easy-social-mcps-v${expectedVersion}.zip`);
+  const builtChecksumPath = `${builtArchivePath}.sha256`;
+  const first = spawnSync(process.execPath, ["scripts/build.mjs", "--out", output], { cwd: packageDir, encoding: "utf8" });
   assert.equal(first.status, 0, first.stderr || first.stdout);
-  const firstArchive = fs.readFileSync(archivePath);
-  const second = spawnSync(process.execPath, ["scripts/build.mjs"], { cwd: packageDir, encoding: "utf8" });
+  const firstArchive = fs.readFileSync(builtArchivePath);
+  const second = spawnSync(process.execPath, ["scripts/build.mjs", "--out", output], { cwd: packageDir, encoding: "utf8" });
   assert.equal(second.status, 0, second.stderr || second.stdout);
-  const secondArchive = fs.readFileSync(archivePath);
+  const secondArchive = fs.readFileSync(builtArchivePath);
   assert.deepEqual(secondArchive, firstArchive, "two builds must be byte-for-byte identical");
+  assert.deepEqual(fs.readFileSync(archivePath), firstArchive, "committed all-in-one ZIP must match a clean rebuild");
+  assert.equal(fs.readFileSync(checksumPath, "utf8"), fs.readFileSync(builtChecksumPath, "utf8"), "committed checksum must match a clean rebuild");
 
   const entries = readZipEntries(firstArchive);
   assert.deepEqual([...entries.keys()].sort(), [
@@ -66,7 +73,7 @@ test("all-in-one build packages the installer and exact released bytes for all f
     "SHA256SUMS.txt",
     "install-easy-mcp.mjs",
     "reddit-easy-v0.3.1.mcpb",
-    "tiktok-easy-v0.1.0.mcpb",
+    "tiktok-easy-v0.1.1.mcpb",
     "x-easy-v0.1.0.mcpb",
     "youtube-easy-v0.1.0.mcpb",
   ]);
@@ -87,5 +94,35 @@ test("all-in-one build packages the installer and exact released bytes for all f
   assert.deepEqual(checksumLines, expectedChecksumLines.sort());
 
   const outerHash = sha256(firstArchive);
-  assert.equal(fs.readFileSync(checksumPath, "utf8"), `${outerHash}  easy-social-mcps-v0.1.0.zip\n`);
+  assert.equal(fs.readFileSync(builtChecksumPath, "utf8"), `${outerHash}  easy-social-mcps-v${expectedVersion}.zip\n`);
+});
+
+test("all-in-one release gate validates the installer and exact release version", () => {
+  const workflow = fs.readFileSync(path.join(repoRoot, ".github", "workflows", "build-easy-social-mcps.yml"), "utf8");
+  assert.match(workflow, /npm --prefix easy-mcp-installer run check/);
+  assert.match(workflow, /npm --prefix easy-mcp-installer test/);
+  assert.match(workflow, /package\.json/);
+  assert.match(workflow, /easy-social-mcps-v\$VERSION/);
+
+  const installerWorkflow = fs.readFileSync(path.join(repoRoot, ".github", "workflows", "build-easy-mcp-installer.yml"), "utf8");
+  assert.match(installerWorkflow, /package\.json/);
+  assert.match(installerWorkflow, /easy-mcp-installer-v\$VERSION/);
+});
+
+test("published component releases refuse to overwrite existing immutable assets", () => {
+  const reddit = fs.readFileSync(path.join(repoRoot, ".github", "workflows", "publish-reddit-v031.yml"), "utf8");
+  assert.doesNotMatch(reddit, /gh release upload[^\n]*--clobber/);
+  assert.match(reddit, /already exists.*refus/i);
+  assert.ok(
+    reddit.indexOf("gh release view") < reddit.indexOf("git add reddit-easy.mcpb"),
+    "v0.3.1 immutable-release guard must run before committing generated artifacts",
+  );
+
+  const legacy = fs.readFileSync(path.join(repoRoot, ".github", "workflows", "publish-easy-releases.yml"), "utf8");
+  assert.doesNotMatch(legacy, /gh release upload[^\n]*reddit-easy-v0\.3\.0[^\n]*--clobber/);
+  const legacyGuard = legacy.indexOf('gh release view "$tag"');
+  assert.ok(
+    legacyGuard >= 0 && legacyGuard < legacy.indexOf("git add src/index.js"),
+    "v0.3.0 immutable-release guard must run before committing generated artifacts",
+  );
 });

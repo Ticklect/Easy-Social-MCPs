@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const packageDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repoRoot = path.dirname(packageDir);
-const version = "0.1.0";
+const version = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf8")).version;
 const base = `easy-social-mcps-v${version}`;
 
 function crcTable() {
@@ -80,7 +80,7 @@ const sources = [
   ["install-easy-mcp.mjs", path.join(repoRoot, "easy-mcp-installer", "install-easy-mcp.mjs"), true],
   ["reddit-easy-v0.3.1.mcpb", path.join(repoRoot, "reddit-easy-v0.3.1.mcpb"), false],
   ["x-easy-v0.1.0.mcpb", path.join(repoRoot, "x-easy", "x-easy-v0.1.0.mcpb"), false],
-  ["tiktok-easy-v0.1.0.mcpb", path.join(repoRoot, "tiktok-easy", "tiktok-easy-v0.1.0.mcpb"), false],
+  ["tiktok-easy-v0.1.1.mcpb", path.join(repoRoot, "tiktok-easy", "tiktok-easy-v0.1.1.mcpb"), false],
   ["youtube-easy-v0.1.0.mcpb", path.join(repoRoot, "youtube-easy", "youtube-easy-v0.1.0.mcpb"), false],
 ];
 
