@@ -209,10 +209,12 @@ test("shipped TikTok runtime uses the cross-process lock in both state updates a
 test("stale lock reclamation never allows overlapping holders", async () => {
   const source = zipEntries(sourceZip);
   const lockSource = text(source, "src/runtime/file-lock.ts");
-  assert.match(lockSource, /reclaimClaimPath/,
-    "stale lock deletion must be serialized through an exclusive sibling reclaim claim");
+  assert.match(lockSource, /reclaimRootPath/,
+    "stale lock deletion must coordinate through a persistent reclaim root");
   assert.match(lockSource, /reclaimInProgress/,
     "new lock acquisition must yield while stale reclamation is in progress");
+  assert.match(lockSource, /randomUUID/,
+    "each reaper must use a unique claim path so dead claims can be removed safely");
   const packaged = zipEntries(mcpb);
   const lockModule = packaged.get("app/dist/runtime/file-lock.js");
   assert.ok(lockModule, "packaged runtime must include app/dist/runtime/file-lock.js");
@@ -288,6 +290,31 @@ test("stale lock reclamation never allows overlapping holders", async () => {
       assert.equal(fs.existsSync(violationPath), false, `round ${round}: stale reclamation admitted overlapping holders`);
       assert.deepEqual(fs.readdirSync(markerDir), [], `round ${round}: all holder markers must be removed`);
     }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a crashed stale-lock reaper cannot permanently wedge acquisition", async () => {
+  const packaged = zipEntries(mcpb);
+  const lockModule = packaged.get("app/dist/runtime/file-lock.js");
+  assert.ok(lockModule, "packaged runtime must include app/dist/runtime/file-lock.js");
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tiktok-stale-reaper-crash-"));
+  try {
+    const modulePath = path.join(dir, "file-lock.js");
+    fs.writeFileSync(path.join(dir, "package.json"), '{"type":"module"}\n');
+    fs.writeFileSync(modulePath, lockModule);
+    const lockPath = path.join(dir, "shared.lock");
+    const reclaimRoot = `${lockPath}.reaping`;
+    fs.mkdirSync(reclaimRoot);
+    fs.mkdirSync(path.join(reclaimRoot, "2147483647-dead-reaper"));
+
+    const { acquireFileLock } = await import(`${pathToFileURL(modulePath).href}?crash-recovery=${Date.now()}`);
+    const release = await acquireFileLock(lockPath, { timeoutMs: 500, pollMs: 10 });
+    release();
+    assert.equal(fs.existsSync(path.join(reclaimRoot, "2147483647-dead-reaper")), false,
+      "dead unique reaper claim must be removed before acquisition proceeds");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
