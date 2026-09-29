@@ -206,6 +206,93 @@ test("shipped TikTok runtime uses the cross-process lock in both state updates a
   }
 });
 
+test("stale lock reclamation never allows overlapping holders", async () => {
+  const source = zipEntries(sourceZip);
+  const lockSource = text(source, "src/runtime/file-lock.ts");
+  assert.match(lockSource, /reclaimClaimPath/,
+    "stale lock deletion must be serialized through an exclusive sibling reclaim claim");
+  assert.match(lockSource, /reclaimInProgress/,
+    "new lock acquisition must yield while stale reclamation is in progress");
+  const packaged = zipEntries(mcpb);
+  const lockModule = packaged.get("app/dist/runtime/file-lock.js");
+  assert.ok(lockModule, "packaged runtime must include app/dist/runtime/file-lock.js");
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tiktok-stale-lock-race-"));
+  try {
+    const modulePath = path.join(dir, "file-lock.js");
+    const workerPath = path.join(dir, "worker.mjs");
+    fs.writeFileSync(path.join(dir, "package.json"), '{"type":"module"}\n');
+    fs.writeFileSync(modulePath, lockModule);
+    fs.writeFileSync(workerPath, `
+      import fs from "node:fs";
+      import path from "node:path";
+      import { acquireFileLock } from ${JSON.stringify(pathToFileURL(modulePath).href)};
+      console.log("READY");
+      while (!fs.existsSync(process.env.START_PATH)) {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+      }
+      const release = await acquireFileLock(process.env.LOCK_PATH, { timeoutMs: 15_000, pollMs: 1 });
+      const marker = path.join(process.env.MARKER_DIR, "holder-" + process.pid);
+      fs.writeFileSync(marker, process.argv[2], { flag: "wx" });
+      try {
+        const holders = fs.readdirSync(process.env.MARKER_DIR).filter((name) => name.startsWith("holder-")).length;
+        if (holders > 1) fs.appendFileSync(process.env.VIOLATION_PATH, String(holders) + String.fromCharCode(10));
+        await new Promise((resolve) => setTimeout(resolve, 120));
+      } finally {
+        fs.rmSync(marker, { force: true });
+        release();
+      }
+    `);
+
+    for (let round = 0; round < 8; round += 1) {
+      const lockPath = path.join(dir, `shared-${round}.lock`);
+      const startPath = path.join(dir, `start-${round}`);
+      const markerDir = path.join(dir, `markers-${round}`);
+      const violationPath = path.join(dir, `violation-${round}.txt`);
+      fs.mkdirSync(markerDir);
+      fs.mkdirSync(lockPath);
+      fs.writeFileSync(path.join(lockPath, "owner.json"), JSON.stringify({ pid: 2_147_483_647 }));
+      const stalePayload = path.join(lockPath, "stale-payload");
+      fs.mkdirSync(stalePayload);
+      for (let index = 0; index < 2_000; index += 1) {
+        fs.writeFileSync(path.join(stalePayload, `entry-${index}.txt`), "stale\n");
+      }
+
+      const workers = Array.from({ length: 24 }, (_, index) => {
+        const child = spawn(process.execPath, [workerPath, `${round}-${index}`], {
+          env: {
+            ...process.env,
+            NODE_NO_WARNINGS: "1",
+            LOCK_PATH: lockPath,
+            START_PATH: startPath,
+            MARKER_DIR: markerDir,
+            VIOLATION_PATH: violationPath,
+          },
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+        child.stderrOutput = "";
+        child.stderr.setEncoding("utf8");
+        child.stderr.on("data", (chunk) => { child.stderrOutput += chunk; });
+        return child;
+      });
+
+      await Promise.all(workers.map((child) => waitForLine(child, "READY", 10_000)));
+      fs.writeFileSync(startPath, "go\n");
+      await Promise.all(workers.map(async (child) => {
+        try {
+          await waitForExit(child, 20_000);
+        } catch (error) {
+          throw new Error(`${error.message}; stderr=${child.stderrOutput}`);
+        }
+      }));
+      assert.equal(fs.existsSync(violationPath), false, `round ${round}: stale reclamation admitted overlapping holders`);
+      assert.deepEqual(fs.readdirSync(markerDir), [], `round ${round}: all holder markers must be removed`);
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("TikTok release publishing never clobbers an existing release asset", () => {
   const workflow = fs.readFileSync(workflowPath, "utf8");
   assert.doesNotMatch(workflow, /gh release upload[^\n]*--clobber/);
