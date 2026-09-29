@@ -295,7 +295,7 @@ test("stale lock reclamation never allows overlapping holders", async () => {
   }
 });
 
-test("a crashed stale-lock reaper cannot permanently wedge acquisition", async () => {
+test("a crashed or PID-reused stale-lock reaper cannot permanently wedge acquisition", async () => {
   const packaged = zipEntries(mcpb);
   const lockModule = packaged.get("app/dist/runtime/file-lock.js");
   assert.ok(lockModule, "packaged runtime must include app/dist/runtime/file-lock.js");
@@ -308,12 +308,13 @@ test("a crashed stale-lock reaper cannot permanently wedge acquisition", async (
     const lockPath = path.join(dir, "shared.lock");
     const reclaimRoot = `${lockPath}.reaping`;
     fs.mkdirSync(reclaimRoot);
-    fs.mkdirSync(path.join(reclaimRoot, "2147483647-dead-reaper"));
+    const staleClaim = `${process.pid}-${"0".repeat(32)}-stale-reaper`;
+    fs.mkdirSync(path.join(reclaimRoot, staleClaim));
 
     const { acquireFileLock } = await import(`${pathToFileURL(modulePath).href}?crash-recovery=${Date.now()}`);
     const release = await acquireFileLock(lockPath, { timeoutMs: 500, pollMs: 10 });
     release();
-    assert.equal(fs.existsSync(path.join(reclaimRoot, "2147483647-dead-reaper")), false,
+    assert.equal(fs.existsSync(path.join(reclaimRoot, staleClaim)), false,
       "dead unique reaper claim must be removed before acquisition proceeds");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
