@@ -215,6 +215,8 @@ test("stale lock reclamation never allows overlapping holders", async () => {
     "new lock acquisition must yield while stale reclamation is in progress");
   assert.match(lockSource, /randomUUID/,
     "each reaper must use a unique claim path so dead claims can be removed safely");
+  assert.match(lockSource, /join\(claimDir, "lock"\)/,
+    "a stale lock must be quarantined inside its reclaim claim so an expired reaper cannot later move a fresh live lock");
   const packaged = zipEntries(mcpb);
   const lockModule = packaged.get("app/dist/runtime/file-lock.js");
   assert.ok(lockModule, "packaged runtime must include app/dist/runtime/file-lock.js");
