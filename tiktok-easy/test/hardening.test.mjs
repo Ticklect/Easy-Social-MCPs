@@ -321,6 +321,40 @@ test("a crashed or PID-reused stale-lock reaper cannot permanently wedge acquisi
   }
 });
 
+test("an expired stale reaper claim is recovered even when its PID belongs to another live process", async () => {
+  const packaged = zipEntries(mcpb);
+  const lockModule = packaged.get("app/dist/runtime/file-lock.js");
+  assert.ok(lockModule, "packaged runtime must include app/dist/runtime/file-lock.js");
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tiktok-foreign-pid-reuse-"));
+  const liveChild = spawn(process.execPath, ["-e", 'console.log("READY"); setTimeout(() => {}, 10_000);'], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  try {
+    await waitForLine(liveChild, "READY", 5_000);
+    const modulePath = path.join(dir, "file-lock.js");
+    fs.writeFileSync(path.join(dir, "package.json"), '{"type":"module"}\n');
+    fs.writeFileSync(modulePath, lockModule);
+    const lockPath = path.join(dir, "shared.lock");
+    const reclaimRoot = `${lockPath}.reaping`;
+    fs.mkdirSync(reclaimRoot);
+    const staleClaim = `${liveChild.pid}-${"0".repeat(32)}-stale-reaper`;
+    const staleClaimPath = path.join(reclaimRoot, staleClaim);
+    fs.mkdirSync(staleClaimPath);
+    const staleTime = new Date(Date.now() - 60_000);
+    fs.utimesSync(staleClaimPath, staleTime, staleTime);
+
+    const { acquireFileLock } = await import(`${pathToFileURL(modulePath).href}?foreign-pid-reuse=${Date.now()}`);
+    const release = await acquireFileLock(lockPath, { timeoutMs: 750, pollMs: 10 });
+    release();
+    assert.equal(fs.existsSync(staleClaimPath), false,
+      "expired reclaim claim must be removed even when its numeric PID is currently live");
+  } finally {
+    liveChild.kill();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("TikTok release publishing never clobbers an existing release asset", () => {
   const workflow = fs.readFileSync(workflowPath, "utf8");
   assert.doesNotMatch(workflow, /gh release upload[^\n]*--clobber/);
