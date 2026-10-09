@@ -145,14 +145,14 @@ export function createWriteHandlers({
   const withStudio = async (fn, options = {}) => await withProfileLease(stateDir, async () => await withPage(
     async (client, browser) => await fn(adapterFactory(client, browser), client, browser),
     options,
-  ), leaseOptions);
+  ), { pacingKind: options.pacingKind || "read", ...leaseOptions });
 
   const channel = async () => await withStudio(async (studio) => await studio.requireChannel(), { url: "https://studio.youtube.com/" });
   const withSessionStudio = async (session, fn, options = {}) => await withStudio(async (studio) => {
     const current = await studio.requireChannel();
     if (current.channelId !== session.channelId) throw new Error("UNCERTAIN: The signed-in YouTube channel changed before the operation could be verified; no further action was sent.");
     return await fn(studio, current);
-  }, options);
+  }, { ...options, pacingKind: options.pacingKind || "write" });
   const coordinate = async (options) => publicOutcome(await coordinatedWrite({
     ...options,
     root: stateDir,

@@ -5,6 +5,12 @@ import crypto from "node:crypto";
 const DEFAULT_LEASE_MS = 45_000;
 const DEFAULT_WAIT_MS = 120_000;
 const POLL_MS = 60;
+const READ_GAP_MS = 1_250;
+const WRITE_GAP_MS = 3_500;
+const MAX_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1_000;
+const RENAME_RETRY_CODES = new Set(["EPERM", "EACCES", "EBUSY"]);
+const RENAME_RETRY_COUNT = 12;
+const renameDelay = new Int32Array(new SharedArrayBuffer(4));
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const hash = (value) => crypto.createHash("sha256").update(String(value)).digest("hex");
@@ -24,8 +30,23 @@ function readJson(file) {
 function atomicJsonWrite(file, value) {
   ensurePrivateDir(path.dirname(file));
   const temp = `${file}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`;
-  fs.writeFileSync(temp, JSON.stringify(value, null, 2), { mode: 0o600 });
-  fs.renameSync(temp, file);
+  try {
+    fs.writeFileSync(temp, JSON.stringify(value, null, 2), { mode: 0o600 });
+    // Windows can briefly reject replacement while another process reads the
+    // destination or antivirus scans the file. Keep the old complete record
+    // available until the rename succeeds; never fall back to a direct write.
+    for (let attempt = 0; ; attempt++) {
+      try {
+        fs.renameSync(temp, file);
+        break;
+      } catch (error) {
+        if (!RENAME_RETRY_CODES.has(error?.code) || attempt >= RENAME_RETRY_COUNT - 1) throw error;
+        Atomics.wait(renameDelay, 0, 0, Math.min(15 * (attempt + 1), 75));
+      }
+    }
+  } finally {
+    try { fs.rmSync(temp, { force: true }); } catch {}
+  }
 }
 
 function removeQuiet(target) {
@@ -46,7 +67,88 @@ export function coordinationPaths(root) {
     locks: path.join(base, "locks"),
     writes: path.join(base, "writes"),
     accounts: path.join(base, "accounts"),
+    profileTraffic: path.join(base, "profile-traffic.json"),
   };
+}
+
+function profileTrafficFile(root) {
+  const paths = coordinationPaths(root);
+  ensurePrivateDir(paths.base);
+  return paths.profileTraffic;
+}
+
+function readProfileTraffic(root) {
+  const file = profileTrafficFile(root);
+  const value = readJson(file);
+  if (value && typeof value === "object" && !Array.isArray(value)) return value;
+  if (fs.existsSync(file)) throw new Error("Shared YouTube pacing state is unreadable; browser access stopped.");
+  return {};
+}
+
+function updateProfileTraffic(root, changes) {
+  const file = profileTrafficFile(root);
+  const previous = readProfileTraffic(root);
+  const next = { ...previous, ...changes };
+  atomicJsonWrite(file, next);
+  return next;
+}
+
+function retryAfterDelay(value, now) {
+  if (value === undefined || value === null) return null;
+  const text = String(value).trim();
+  if (!text) return null;
+  const seconds = Number(text);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(Math.ceil(seconds * 1_000), MAX_COOLDOWN_MS);
+  const date = Date.parse(text);
+  return Number.isFinite(date) && date > now ? Math.min(date - now, MAX_COOLDOWN_MS) : null;
+}
+
+// Only YouTube's own document and API responses count. An unrelated image or
+// Google service error must not suppress a channel write.
+export function noteYouTubeResponse(root, { response, type } = {}, now = Date.now()) {
+  const status = Number(response?.status);
+  if (![429, 500, 502, 503, 504].includes(status)) return null;
+  if (!["Document", "XHR", "Fetch"].includes(type)) return null;
+  let url;
+  try { url = new URL(response.url); } catch { return null; }
+  const host = url.hostname.toLowerCase();
+  if (url.protocol !== "https:" || !(host === "youtube.com" || host.endsWith(".youtube.com"))) return null;
+
+  const headers = response.headers && typeof response.headers === "object" ? response.headers : {};
+  const retryAfter = Object.entries(headers).find(([name]) => name.toLowerCase() === "retry-after")?.[1];
+  // A tiny (or zero) Retry-After must never suppress the local protective
+  // floor: otherwise repeated 429s can immediately trigger another request.
+  const minimumDelay = status === 429 ? 60_000 : 15_000;
+  const delay = Math.max(minimumDelay, retryAfterDelay(retryAfter, now) ?? 0);
+  const previous = readProfileTraffic(root);
+  const cooldownUntil = Math.max(Number(previous.cooldownUntil || 0), now + delay);
+  const longestCooldown = cooldownUntil > Number(previous.cooldownUntil || 0);
+  updateProfileTraffic(root, { cooldownUntil, status: longestCooldown ? status : previous.status, observedAt: longestCooldown ? now : previous.observedAt, host: longestCooldown ? host : previous.host });
+  return { status, cooldownUntil };
+}
+
+function checkProfileCooldown(state, now) {
+  const cooldownUntil = Number(state?.cooldownUntil || 0);
+  if (cooldownUntil <= now) return;
+  const remaining = Math.ceil((cooldownUntil - now) / 1_000);
+  const error = new Error(`YouTube returned HTTP ${state.status || 429}; the shared browser profile is cooling down for ${remaining} more seconds. No automatic retry was attempted.`);
+  error.code = "YOUTUBE_COOLDOWN";
+  error.cooldownUntil = cooldownUntil;
+  throw error;
+}
+
+async function paceProfile(root, options) {
+  const currentGap = options.pacingMs ?? (options.pacingKind === "write" ? WRITE_GAP_MS : READ_GAP_MS);
+  if (!Number.isFinite(currentGap) || currentGap < 0 || currentGap > 60_000) throw new Error("Invalid profile pacing interval.");
+  const state = readProfileTraffic(root);
+  checkProfileCooldown(state, Date.now());
+  const previousGap = Number(state.gapMs || 0);
+  if (!Number.isFinite(previousGap) || previousGap < 0 || previousGap > 60_000) throw new Error("Shared YouTube pacing interval is invalid; browser access stopped.");
+  const interval = Math.max(currentGap, previousGap);
+  const waitUntil = Number(state.lastActivityAt || 0) + interval;
+  if (waitUntil > Date.now()) await sleep(waitUntil - Date.now());
+  checkProfileCooldown(readProfileTraffic(root), Date.now());
+  updateProfileTraffic(root, { lastActivityAt: Date.now(), gapMs: currentGap });
 }
 
 export async function acquireLease({
@@ -81,7 +183,13 @@ export async function acquireLease({
         leaseMs,
         ...metadata,
       };
-      atomicJsonWrite(leaseFile, record);
+      try { atomicJsonWrite(leaseFile, record); }
+      catch (error) {
+        // No lease was returned and no action may have run. Release the newly
+        // created directory rather than leaving a phantom lock until expiry.
+        removeQuiet(lockDir);
+        throw error;
+      }
       let released = false;
       const heartbeat = setInterval(() => {
         if (released) return;
@@ -159,7 +267,14 @@ export async function withProfileLease(root, fn, options = {}) {
     leaseMs: options.leaseMs || DEFAULT_LEASE_MS,
     waitMs: options.waitMs || DEFAULT_WAIT_MS,
     metadata: options.metadata || {},
-  }, fn);
+  }, async (lease) => {
+    if (options.skipPacing) return await fn(lease);
+    await paceProfile(root, options);
+    try { return await fn(lease); }
+    finally {
+      updateProfileTraffic(root, { lastActivityAt: Date.now(), gapMs: options.pacingMs ?? (options.pacingKind === "write" ? WRITE_GAP_MS : READ_GAP_MS) });
+    }
+  });
 }
 
 function writeFile(root, account, fingerprint) {
@@ -319,6 +434,9 @@ export async function coordinatedWrite({
     }, async (accountLease) => {
       const statePath = accountFile(root, account);
       const state = readJson(statePath) || {};
+      if (fs.existsSync(statePath) && (!Number.isFinite(state.lastWriteAt) || state.lastWriteAt < 0)) {
+        throw new Error("Shared YouTube account pacing state is unreadable; write stopped before dispatch.");
+      }
       const elapsed = Date.now() - Number(state.lastWriteAt || 0);
       if (elapsed < writeGapMs) await sleep(writeGapMs - elapsed);
       const sentAt = Date.now();

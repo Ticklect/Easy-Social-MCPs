@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const expectedVersion = "0.1.1";
+const expectedVersion = "0.1.2";
 
 function zipEntries(file) {
   const data = fs.readFileSync(file);

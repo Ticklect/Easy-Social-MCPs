@@ -129,12 +129,12 @@ test("shipped TikTok connect tools do not expose a model-controlled browser exec
 
 test("TikTok hardening ships as immutable v0.1.1 rather than replacing v0.1.0", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(tiktokDir, "manifest.json"), "utf8"));
-  assert.equal(manifest.version, version);
+  assert.equal(manifest.version, "0.1.2");
   const source = zipEntries(sourceZip);
   assert.match(text(source, "src/server.ts"), /version: "0\.1\.1"/);
   const workflow = fs.readFileSync(workflowPath, "utf8");
-  assert.match(workflow, /tag="tiktok-easy-v0\.1\.1"/);
-  assert.match(workflow, /tiktok-easy-v0\.1\.1\.mcpb/);
+  assert.match(workflow, /tag="tiktok-easy-v0\.1\.2"/);
+  assert.match(workflow, /tiktok-easy-v0\.1\.2\.mcpb/);
   assert.ok(fs.existsSync(path.join(tiktokDir, "tiktok-easy-v0.1.0.mcpb")), "v0.1.0 MCPB must remain in the repository");
   assert.ok(fs.existsSync(path.join(tiktokDir, "tiktok-easy-v0.1.0-source.zip")), "v0.1.0 source ZIP must remain in the repository");
 });
@@ -363,7 +363,7 @@ test("TikTok release publishing never clobbers an existing release asset", () =>
   assert.match(workflow, /gh release download "\$tag"/);
   assert.match(workflow, /sha256sum --check/);
   const releaseGuard = workflow.indexOf('gh release view "$tag"');
-  const artifactCommit = workflow.indexOf("git add tiktok-easy/tiktok-easy-v0.1.1.mcpb");
+  const artifactCommit = workflow.indexOf("git add tiktok-easy/tiktok-easy-v0.1.2.mcpb");
   assert.ok(releaseGuard >= 0 && artifactCommit >= 0 && releaseGuard < artifactCommit,
     "existing v0.1.1 release must be checked before artifact commit/push");
   assert.match(workflow, /- name: Commit artifacts\s+if: steps\.release_guard\.outputs\.exists != 'true'/,
@@ -429,7 +429,7 @@ test("TikTok release packager is byte-for-byte deterministic and excludes node_m
       "all ZIP entries must use fixed regular-file 0644 attributes");
 
     const workflow = fs.readFileSync(workflowPath, "utf8");
-    assert.match(workflow, /node tiktok-easy\/scripts\/package-release\.mjs/);
+    assert.match(workflow, /node tiktok-easy\/scripts\/build-v0\.1\.2\.mjs/);
     assert.doesNotMatch(workflow, /\bzip\s+-X\b/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

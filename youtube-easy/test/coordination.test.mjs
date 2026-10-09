@@ -129,3 +129,54 @@ test("ambiguous outcome persists UNCERTAIN and never retries", async () => {
   assert.match(first.message, /^UNCERTAIN:/);
   assert.equal(count(external, "maybe:"), 1);
 });
+
+test("transient Windows rename sharing errors are retried without releasing or duplicating the lease", async () => {
+  const root = tempRoot();
+  const originalRename = fs.renameSync;
+  let injected = 0;
+  try {
+    fs.renameSync = (from, to) => {
+      if (String(to).endsWith("lease.json") && injected < 4) {
+        injected++;
+        const error = new Error("Sharing violation during atomic metadata replacement");
+        error.code = ["EPERM", "EACCES", "EBUSY", "EPERM"][injected - 1];
+        throw error;
+      }
+      return originalRename(from, to);
+    };
+    const lease = await acquireLease({ root, namespace: "rename-retry", key: "same", leaseMs: 1_000, waitMs: 1_000 });
+    assert.equal(injected, 4);
+    assert.equal(lease.update({ phase: "dispatch" }), true);
+    assert.equal(JSON.parse(fs.readFileSync(path.join(lease.lockDir, "lease.json"), "utf8")).phase, "dispatch");
+    assert.equal(fs.readdirSync(lease.lockDir).some((name) => name.endsWith(".tmp")), false);
+    lease.release();
+    assert.equal(fs.existsSync(lease.lockDir), false);
+  } finally {
+    fs.renameSync = originalRename;
+  }
+});
+
+test("permanent metadata rename failure fails closed and leaves no phantom lock or temp file", async () => {
+  const root = tempRoot();
+  const originalRename = fs.renameSync;
+  let failures = 0;
+  try {
+    fs.renameSync = (from, to) => {
+      if (String(to).endsWith("lease.json")) {
+        failures++;
+        const error = new Error("Persistent sharing violation");
+        error.code = "EPERM";
+        throw error;
+      }
+      return originalRename(from, to);
+    };
+    await assert.rejects(acquireLease({ root, namespace: "rename-failure", key: "same", leaseMs: 1_000, waitMs: 1_000 }), /Persistent sharing violation/);
+    assert.equal(failures, 12);
+  } finally {
+    fs.renameSync = originalRename;
+  }
+  const locks = path.join(root, "coordination", "locks");
+  assert.deepEqual(fs.readdirSync(locks), []);
+  const lease = await acquireLease({ root, namespace: "rename-failure", key: "same", leaseMs: 1_000, waitMs: 1_000 });
+  lease.release();
+});

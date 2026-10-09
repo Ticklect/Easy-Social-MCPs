@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { parseGoogleYoutubeUrl, validateDebuggerWs } from "./validation.js";
+import { noteYouTubeResponse } from "./coordination.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -144,6 +145,7 @@ export class CdpClient {
 
   send(method, params = {}) {
     if (!this.ws) throw new Error("Browser debugger WebSocket is not connected.");
+    if (this.youtubeThrottle && method !== "Browser.close") throw this.youtubeThrottle;
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
@@ -310,15 +312,35 @@ export class YouTubeBrowser {
     await client.send("Runtime.enable");
     await client.send("DOM.enable");
     await client.send("Network.enable");
-    await this.navigate(client, safe);
-    return client;
+    client.on("Network.responseReceived", (event) => {
+      try {
+        const throttle = noteYouTubeResponse(this.stateDir, event);
+        if (throttle) {
+          client.youtubeThrottle ||= new Error(`YouTube returned HTTP ${throttle.status}; a shared cooldown was recorded. No automatic retry was attempted.`);
+          client.youtubeThrottle.code = "YOUTUBE_THROTTLED";
+        }
+      } catch (error) {
+        // State persistence failure must not allow more browser actions.
+        client.youtubeThrottle ||= new Error(`Cannot persist the shared YouTube cooldown: ${error.message}`);
+      }
+    });
+    try {
+      await this.navigate(client, safe);
+      if (client.youtubeThrottle) throw client.youtubeThrottle;
+      return client;
+    } catch (error) {
+      client.close();
+      throw error;
+    }
   }
 
   async navigate(client, url) {
     const safe = parseGoogleYoutubeUrl(url).href;
     await client.send("Page.navigate", { url: safe });
     for (let i = 0; i < 80; i++) {
+      if (client.youtubeThrottle) throw client.youtubeThrottle;
       const state = await client.evaluate("({ready: document.readyState, href: location.href})").catch(() => null);
+      if (client.youtubeThrottle) throw client.youtubeThrottle;
       if (state && (state.ready === "interactive" || state.ready === "complete")) {
         parseGoogleYoutubeUrl(state.href);
         return state.href;
@@ -353,7 +375,11 @@ export function getDefaultBrowser() {
 
 export async function withYouTubePage(fn, { browser = getDefaultBrowser(), url } = {}) {
   const client = await browser.page(url);
-  try { return await fn(client, browser); }
+  try {
+    const result = await fn(client, browser);
+    if (client.youtubeThrottle) throw client.youtubeThrottle;
+    return result;
+  }
   finally { client.close(); }
 }
 

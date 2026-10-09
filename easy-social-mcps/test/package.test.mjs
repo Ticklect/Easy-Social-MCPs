@@ -9,16 +9,16 @@ import test from "node:test";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageDir, "..");
-const expectedVersion = "0.1.1";
+const expectedVersion = "0.1.2";
 const archivePath = path.join(packageDir, `easy-social-mcps-v${expectedVersion}.zip`);
 const checksumPath = `${archivePath}.sha256`;
 
-const expectedBundleSources = new Map([
-  ["reddit-easy-v0.3.1.mcpb", path.join(repoRoot, "reddit-easy-v0.3.1.mcpb")],
-  ["x-easy-v0.1.0.mcpb", path.join(repoRoot, "x-easy", "x-easy-v0.1.0.mcpb")],
-  ["tiktok-easy-v0.1.1.mcpb", path.join(repoRoot, "tiktok-easy", "tiktok-easy-v0.1.1.mcpb")],
-  ["youtube-easy-v0.1.0.mcpb", path.join(repoRoot, "youtube-easy", "youtube-easy-v0.1.0.mcpb")],
-]);
+const expectedBundleSources = new Map(["reddit-easy", "x-easy", "tiktok-easy", "youtube-easy"].map((name) => {
+  const dir = name === "reddit-easy" ? repoRoot : path.join(repoRoot, name);
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
+  const file = `${name}-v${manifest.version}.mcpb`;
+  return [file, path.join(dir, file)];
+}));
 
 function readZipEntries(buffer) {
   const eocd = buffer.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
@@ -62,8 +62,8 @@ test("all-in-one build packages the installer and exact released bytes for all f
   const second = spawnSync(process.execPath, ["scripts/build.mjs", "--out", output], { cwd: packageDir, encoding: "utf8" });
   assert.equal(second.status, 0, second.stderr || second.stdout);
   const secondArchive = fs.readFileSync(builtArchivePath);
-  assert.deepEqual(secondArchive, firstArchive, "two builds must be byte-for-byte identical");
-  assert.deepEqual(fs.readFileSync(archivePath), firstArchive, "committed all-in-one ZIP must match a clean rebuild");
+  assert.equal(sha256(secondArchive), sha256(firstArchive), "two builds must be byte-for-byte identical");
+  assert.equal(sha256(fs.readFileSync(archivePath)), sha256(firstArchive), "committed all-in-one ZIP must match a clean rebuild");
   assert.equal(fs.readFileSync(checksumPath, "utf8"), fs.readFileSync(builtChecksumPath, "utf8"), "committed checksum must match a clean rebuild");
 
   const entries = readZipEntries(firstArchive);
@@ -72,12 +72,13 @@ test("all-in-one build packages the installer and exact released bytes for all f
     "README.md",
     "SHA256SUMS.txt",
     "install-easy-mcp.mjs",
-    "reddit-easy-v0.3.1.mcpb",
-    "tiktok-easy-v0.1.1.mcpb",
-    "x-easy-v0.1.0.mcpb",
-    "youtube-easy-v0.1.0.mcpb",
-  ]);
-  assert.match(entries.get("README.md").toString("utf8"), /--host both[\s\S]*reddit-easy-v0\.3\.1\.mcpb[\s\S]*youtube-easy-v0\.1\.0\.mcpb/);
+    ...expectedBundleSources.keys(),
+  ].sort());
+  const guide = entries.get("README.md").toString("utf8");
+  const installLine = guide.split(/\r?\n/).find((line) => line.startsWith("node install-easy-mcp.mjs --host both ")) || "";
+  for (const filename of expectedBundleSources.keys()) {
+    assert.ok(installLine.includes(filename), `README install command must include ${filename}`);
+  }
   assert.match(entries.get("install-easy-mcp.mjs").toString("utf8"), /Easy MCP Installer/);
   for (const name of ["LICENSE", "README.md", "SHA256SUMS.txt", "install-easy-mcp.mjs"]) {
     assert.equal(entries.get(name).includes(13), false, `${name} must use portable LF line endings`);
@@ -87,7 +88,11 @@ test("all-in-one build packages the installer and exact released bytes for all f
   const expectedChecksumLines = [];
   for (const [name, source] of expectedBundleSources) {
     const expected = fs.readFileSync(source);
-    assert.deepEqual(entries.get(name), expected, `${name} must match its released repository artifact`);
+    assert.equal(sha256(entries.get(name)), sha256(expected), `${name} must match its released repository artifact`);
+    const pluginEntries = readZipEntries(expected);
+    assert.ok(pluginEntries.has("manifest.json"), `${name} must contain a plugin manifest`);
+    const nestedManifest = JSON.parse(pluginEntries.get("manifest.json").toString("utf8"));
+    assert.equal(name, `${nestedManifest.name}-v${nestedManifest.version}.mcpb`, `${name} must match the packaged identity and version`);
     expectedChecksumLines.push(`${sha256(expected)}  ${name}`);
   }
   expectedChecksumLines.push(`${sha256(entries.get("install-easy-mcp.mjs"))}  install-easy-mcp.mjs`);

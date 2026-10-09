@@ -11,13 +11,13 @@ This repository includes all four ready-to-use MCPs:
 | MCP | Start login | Download this MCP file |
 | --- | --- | --- |
 | [Reddit Easy](./README.md) | `reddit_login` | [`reddit-easy-v0.3.2.mcpb`](./reddit-easy-v0.3.2.mcpb) |
-| [X Easy](./x-easy/README.md) | `x_login` | [`x-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/x-easy-v0.1.0/x-easy-v0.1.0.mcpb) |
-| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.1.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/tiktok-easy-v0.1.1/tiktok-easy-v0.1.1.mcpb) |
-| [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/youtube-easy-v0.1.0/youtube-easy-v0.1.0.mcpb) |
+| [X Easy](./x-easy/README.md) | `x_login` | [`x-easy-v0.1.1.mcpb`](./x-easy/x-easy-v0.1.1.mcpb) |
+| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.2.mcpb`](./tiktok-easy/tiktok-easy-v0.1.2.mcpb) |
+| [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.1.mcpb`](./youtube-easy/youtube-easy-v0.1.1.mcpb) |
 
 ### Want all four?
 
-**[Download Easy Social MCPs All-in-One v0.1.1](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-social-mcps-v0.1.1/easy-social-mcps-v0.1.1.zip)**. It contains the installer plus Reddit Easy v0.3.1, X Easy, TikTok Easy, and YouTube Easy in one ZIP. For Reddit's newer request-limit controls, install the individual v0.3.2 MCPB above.
+**[Easy Social MCPs All-in-One v0.1.2](./easy-social-mcps/easy-social-mcps-v0.1.2.zip)** contains the installer and the newly rate-limited Reddit, X, TikTok and YouTube components. The previous [v0.1.1 release](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-social-mcps-v0.1.1/easy-social-mcps-v0.1.1.zip) remains available but contains the older components.
 
 ### Easiest setup: give this prompt to your coding agent
 
@@ -37,14 +37,14 @@ For example, start the prompt with “Install YouTube Easy into my Codex” and 
 
 ### Manual installation in Codex or Claude Code
 
-You need **two downloads**: the [Easy MCP Installer ZIP](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-mcp-installer-v0.1.1/easy-mcp-installer-v0.1.1.zip), plus the `.mcpb` file for each MCP you want from the table above. You do not need the source ZIPs.
+You need **two downloads**: the [Easy MCP Installer ZIP](./easy-mcp-installer/easy-mcp-installer-v0.1.2.zip), plus the `.mcpb` file for each MCP you want from the table above. You do not need the source ZIPs.
 
 Extract the installer ZIP, place the downloaded `.mcpb` files beside `install-easy-mcp.mjs`, then run one command:
 
 ```text
-node install-easy-mcp.mjs --host codex youtube-easy-v0.1.0.mcpb
-node install-easy-mcp.mjs --host claude youtube-easy-v0.1.0.mcpb
-node install-easy-mcp.mjs --host both reddit-easy-v0.3.2.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.1.mcpb youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host codex youtube-easy-v0.1.1.mcpb
+node install-easy-mcp.mjs --host claude youtube-easy-v0.1.1.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.2.mcpb x-easy-v0.1.1.mcpb tiktok-easy-v0.1.2.mcpb youtube-easy-v0.1.1.mcpb
 ```
 
 Restart Codex or Claude Code afterward. The first command installs only into Codex, the second only into Claude Code, and `--host both` installs into both.
@@ -55,9 +55,9 @@ Restart Codex or Claude Code afterward. The first command installs only into Cod
 
 It includes fail-closed video/Short upload, metadata editing, thumbnails, scheduling, comments, channel/video/search reads, and transcript extraction when the public page exposes it. Cross-process leases and persisted reconciliation return `UNCERTAIN` instead of risking duplicate writes after an ambiguous crash.
 
-[Download YouTube Easy v0.1.0](../../releases/tag/youtube-easy-v0.1.0)
+[YouTube Easy v0.1.1 bundle](./youtube-easy/youtube-easy-v0.1.1.mcpb)
 
-> v0.1.0 is offline-tested against simulated Studio DOM states; it does not claim a live upload was verified. YouTube web automation may break when Studio changes. Read the [YouTube Easy security and limitations](./youtube-easy/README.md) before use.
+> v0.1.1 adds browser-session request pacing and cooldown handling. Offline simulations do not establish successful live uploads or guarantee account safety. YouTube may change Studio at any time. Read the [YouTube Easy security and limitations](./youtube-easy/README.md) before use.
 
 ## TikTok Easy
 
@@ -67,7 +67,7 @@ I also added **[TikTok Easy](./tiktok-easy/README.md)** for TikTok. It packages 
 
 It supports posting and native scheduling, likes, follows, deletion, profile/avatar changes, analytics, saved performance history, and hook analysis.
 
-[Download TikTok Easy v0.1.1](../../releases/tag/tiktok-easy-v0.1.1)
+[TikTok Easy v0.1.2 bundle](./tiktok-easy/tiktok-easy-v0.1.2.mcpb)
 
 > TikTok Easy is an unofficial browser-session integration and carries platform/account risk. Read its [security notes and attribution](./tiktok-easy/README.md) before using it.
 
@@ -75,9 +75,9 @@ It supports posting and native scheduling, likes, follows, deletion, profile/ava
 
 I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same basic idea: import the MCPB, sign in once in a dedicated browser, then read your timeline, search, mentions, notifications and bookmarks, or explicitly post, reply, like, repost and bookmark without setting up X API credentials.
 
-[Download X Easy v0.1.0](./x-easy/x-easy-v0.1.0.mcpb)
+[X Easy v0.1.1 bundle](./x-easy/x-easy-v0.1.1.mcpb)
 
-> X Easy is an unofficial browser-session integration and carries platform/account risk. Read its [warning and attribution](./x-easy/README.md) before using it.
+> X explicitly prohibits scripting its website as a form of automation, and enforcement can include suspension. Local pacing does not make this approach authorised or guarantee account safety. Review the [X Easy security warnings](./x-easy/README.md) and use X's official API for authorised automation.
 
 ## 30-second setup
 

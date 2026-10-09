@@ -101,7 +101,7 @@ function harness(studio, root) {
     fsApi: fs,
     withPage: async (fn) => await fn({}, {}),
     adapterFactory: () => studio,
-    leaseOptions: { leaseMs: 300, waitMs: 5_000, writeGapMs: 0 },
+    leaseOptions: { leaseMs: 300, waitMs: 5_000, writeGapMs: 0, pacingMs: 0 },
   });
 }
 

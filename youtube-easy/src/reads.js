@@ -230,7 +230,7 @@ export function createReadHandlers({
           try { fsApi.chmodSync?.(actual, 0o700); } catch {}
         }
         return { message: "Forgot the local YouTube Easy browser session. Run youtube_login to sign in again." };
-      }, leaseOptions);
+      }, { ...leaseOptions, skipPacing: true });
     },
   };
 }

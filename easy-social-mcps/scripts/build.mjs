@@ -74,14 +74,27 @@ function sha256(data) {
   return crypto.createHash("sha256").update(data).digest("hex");
 }
 
+const components = [
+  { name: "reddit-easy", dir: repoRoot },
+  { name: "x-easy", dir: path.join(repoRoot, "x-easy") },
+  { name: "tiktok-easy", dir: path.join(repoRoot, "tiktok-easy") },
+  { name: "youtube-easy", dir: path.join(repoRoot, "youtube-easy") },
+];
+
+const bundles = components.map(({ name, dir }) => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
+  if (manifest.name !== name || !/^\d+\.\d+\.\d+$/.test(manifest.version)) {
+    throw new Error(`Invalid ${name} manifest version or identity.`);
+  }
+  const filename = `${name}-v${manifest.version}.mcpb`;
+  return [filename, path.join(dir, filename), false];
+});
+
 const sources = [
   ["README.md", path.join(packageDir, "README.md"), true],
   ["LICENSE", path.join(repoRoot, "LICENSE"), true],
   ["install-easy-mcp.mjs", path.join(repoRoot, "easy-mcp-installer", "install-easy-mcp.mjs"), true],
-  ["reddit-easy-v0.3.1.mcpb", path.join(repoRoot, "reddit-easy-v0.3.1.mcpb"), false],
-  ["x-easy-v0.1.0.mcpb", path.join(repoRoot, "x-easy", "x-easy-v0.1.0.mcpb"), false],
-  ["tiktok-easy-v0.1.1.mcpb", path.join(repoRoot, "tiktok-easy", "tiktok-easy-v0.1.1.mcpb"), false],
-  ["youtube-easy-v0.1.0.mcpb", path.join(repoRoot, "youtube-easy", "youtube-easy-v0.1.0.mcpb"), false],
+  ...bundles,
 ];
 
 const entries = sources.map(([name, source, text]) => ({

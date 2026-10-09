@@ -4,7 +4,7 @@ YouTube Easy is a ready-to-import MCP bundle for uploading and managing videos t
 
 ## Setup
 
-1. Download `youtube-easy-v0.1.0.mcpb` from the release.
+1. Download `youtube-easy-v0.1.1.mcpb` from the release.
 2. Import it into an MCPB-compatible host.
 3. Run `youtube_login`.
 4. Sign in to Google/YouTube normally in the dedicated browser window and choose the intended channel.
@@ -32,13 +32,15 @@ The browser profile and every write are coordinated with filesystem-backed lease
 
 After a possible crash, YouTube Easy reconciles the intended action against Studio. It reuses an existing confirmed result, retries only when it can prove the action did not happen, and otherwise returns explicit `UNCERTAIN` without sending another write. Stale leases are recovered after their owner and lease lifetime are checked.
 
+Reads and writes now share a persisted browser-profile pacing state across independent MCP processes. Browser reads are spaced at least 1.25 seconds apart, while Studio actions use a more conservative 3.5-second profile gap in addition to the account write gate. Gaps are measured from the end of the previous browser session. When YouTube returns HTTP 429 or a transient HTTP 5xx response to a document/API request, the MCP records a shared cooldown. It honours a valid `Retry-After` header (up to seven days), otherwise uses a 60-second 429 cooldown or 15-second 5xx cooldown. Calls during cooldown stop before opening a page. There are no automatic retries after throttling, and these are best-effort web-automation limits rather than a guarantee against account restrictions.
+
 ## Browsers and local data
 
 YouTube Easy detects Helium, Google Chrome, Microsoft Edge, and Chromium on Windows, macOS, and Linux. It starts a dedicated local profile and binds the browser debugger to `127.0.0.1` on an ephemeral port. The profile is separate from the user's everyday browser profile. `youtube_forget_session` closes the dedicated browser and removes only that profile.
 
 ## Important limitations
 
-This is an unofficial web-automation integration. YouTube can change Studio markup, labels, flows, anti-automation behavior, or account requirements without notice. v0.1.0 has extensive offline simulated-DOM and independent-process tests, but its maintainers have not performed a real Google login or live YouTube upload in this release. Do not treat offline test coverage as a claim that live uploading currently works.
+This is an unofficial web-automation integration. YouTube can change Studio markup, labels, flows, anti-automation behavior, or account requirements without notice. v0.1.1 has extensive offline simulated-DOM and independent-process tests, but its maintainers have not performed a real Google login or live YouTube upload in this release. Do not treat offline test coverage as a claim that live uploading currently works.
 
 Transcripts are returned only when the public watch page exposes its transcript panel. Playlist and tag operations stop as unsupported when Studio does not provide one uniquely identifiable, re-readable control. Processing/check status can be `null` when Studio does not expose a single unambiguous value.
 
