@@ -3,9 +3,9 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
-import { coordinatedWrite, formatWriteOutcome, KnownWriteFailure, withLease } from "./coordination.js";
+import { coordinatedRedditRequest, coordinatedWrite, formatWriteOutcome, KnownWriteFailure, withLease } from "./coordination.js";
 
-const VERSION = "0.3.1";
+const VERSION = "0.3.2";
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
 const MAX_STDIO_BUFFER = 2 * 1024 * 1024;
@@ -378,7 +378,9 @@ async function withRedditPage(fn) {
 async function redditFetch(cdp, pathOrUrl, options = {}) {
   const safeTarget = normalizeRedditRequestTarget(pathOrUrl);
   const payload = JSON.stringify({ pathOrUrl: safeTarget, options, timeoutMs: REQUEST_TIMEOUT_MS });
-  return await evaluate(cdp, `(async () => {
+  return await coordinatedRedditRequest({ root: appDir,
+    write: String(options.method || "GET").toUpperCase() !== "GET",
+    request: async () => await evaluate(cdp, `(async () => {
     const { pathOrUrl, options, timeoutMs } = ${payload};
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -387,13 +389,19 @@ async function redditFetch(cdp, pathOrUrl, options = {}) {
       const text = await res.text();
       let data = null;
       try { data = JSON.parse(text); } catch {}
-      return { ok: res.ok, status: res.status, url: res.url, data, text: data ? undefined : text.slice(0, 4000) };
+      return { ok: res.ok, status: res.status, url: res.url, data, text: data ? undefined : text.slice(0, 4000),
+        rateLimit: {
+          retryAfter: res.headers.get('retry-after'),
+          remaining: res.headers.get('x-ratelimit-remaining'),
+          reset: res.headers.get('x-ratelimit-reset'),
+        },
+      };
     } catch (e) {
       return { ok: false, status: 0, error: String(e?.message || e) };
     } finally {
       clearTimeout(timer);
     }
-  })()`);
+  })()`) });
 }
 
 async function getSession(cdp) {
