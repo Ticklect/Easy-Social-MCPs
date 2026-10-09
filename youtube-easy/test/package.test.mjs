@@ -43,9 +43,14 @@ function smoke(entry) {
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
     child.on("error", reject);
-    child.on("exit", () => {
+    child.on("exit", (code, signal) => {
       clearTimeout(timer);
-      resolve(stdout.trim().split(/\r?\n/).filter(Boolean).map(JSON.parse));
+      const lines = stdout.trim().split(/\r?\n/).filter(Boolean);
+      if (code !== 0 || lines.length !== 2) {
+        reject(new Error(`packaged MCP expected 2 replies; got ${lines.length} (exit=${code}, signal=${signal}). stderr=${stderr}`));
+        return;
+      }
+      resolve(lines.map(JSON.parse));
     });
     // Keep stdin open until both async MCP responses have been flushed.
     // Closing stdin immediately races server shutdown on faster CI runners.
@@ -92,6 +97,16 @@ test("build creates a self-contained MCPB, source ZIP, and matching SHA-256", as
   const responses = await smoke(path.join(unpack, "dist", "server.js"));
   assert.equal(responses.find((item) => item.id === 1).result.serverInfo.version, "0.1.1");
   assert.equal(responses.find((item) => item.id === 2).result.tools.length, 17);
+
+  // Reproduce realpath/argv mismatches such as macOS /var -> /private/var.
+  const alias = path.join(work, "alias");
+  try {
+    fs.symlinkSync(unpack, alias, process.platform === "win32" ? "junction" : "dir");
+    const aliased = await smoke(path.join(alias, "dist", "server.js"));
+    assert.equal(aliased.find((item) => item.id === 1).result.serverInfo.version, "0.1.1");
+  } catch (error) {
+    if (!["EPERM", "EACCES", "ENOTSUP"].includes(error?.code)) throw error;
+  }
 });
 
 test("release workflow is immutable and tag-triggered", () => {

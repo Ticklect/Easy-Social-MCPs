@@ -1,5 +1,6 @@
 import readline from "node:readline";
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { TOOL_DEFINITIONS } from "./catalog.js";
 import { getDefaultBrowser, withYouTubePage } from "./browser.js";
 import { createReadHandlers } from "./reads.js";
@@ -75,5 +76,9 @@ export function runServer({ handlers = {}, input = process.stdin, output = proce
   return rl;
 }
 
-const isEntry = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
+// macOS /var is commonly a symlink to /private/var. Module URLs use the
+// resolved path, but argv[1] can retain the symlink path from the launcher.
+// Compare real paths so the packaged MCP starts on either path.
+const isEntry = process.argv[1] &&
+  realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isEntry) runServer({ handlers: createDefaultHandlers() });
