@@ -19,12 +19,11 @@ import {
 const installerRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repositoryRoot = path.dirname(installerRoot);
 
-const bundles = [
-  path.join(repositoryRoot, "reddit-easy.mcpb"),
-  path.join(repositoryRoot, "x-easy", "x-easy-v0.1.0.mcpb"),
-  path.join(repositoryRoot, "tiktok-easy", "tiktok-easy-v0.1.1.mcpb"),
-  path.join(repositoryRoot, "youtube-easy", "youtube-easy-v0.1.0.mcpb"),
-];
+const bundles = ["reddit-easy", "x-easy", "tiktok-easy", "youtube-easy"].map((name) => {
+  const dir = name === "reddit-easy" ? repositoryRoot : path.join(repositoryRoot, name);
+  const { version } = JSON.parse(fs.readFileSync(path.join(dir, "manifest.json"), "utf8"));
+  return path.join(dir, `${name}-v${version}.mcpb`);
+});
 
 function tempRoot() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "easy-mcp-installer-test-"));
@@ -241,7 +240,7 @@ test("replace restores the prior registration when adding the managed server fai
   assert.deepEqual(registration, { command: "old-node", args: ["old-server.js", "--legacy"] });
   assert.deepEqual(calls.filter((call) => ["remove", "add"].includes(call[2])).map((call) => call.slice(1)), [
     ["mcp", "remove", "youtube-easy"],
-    ["mcp", "add", "youtube-easy", "--", process.execPath, path.join(dataRoot, "servers", "youtube-easy", "0.1.0", "dist", "server.js")],
+    ["mcp", "add", "youtube-easy", "--", process.execPath, path.join(dataRoot, "servers", "youtube-easy", JSON.parse(fs.readFileSync(path.join(repositoryRoot, "youtube-easy", "manifest.json"), "utf8")).version, "dist", "server.js")],
     ["mcp", "add", "youtube-easy", "--", "old-node", "old-server.js", "--legacy"],
   ]);
 });

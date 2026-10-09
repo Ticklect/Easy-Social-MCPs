@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repositoryRoot = path.dirname(root);
-const version = "0.1.0";
+const version = "0.1.1";
 const artifactBase = `youtube-easy-v${version}`;
 
 function crcTable() {

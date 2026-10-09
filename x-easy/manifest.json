@@ -2,9 +2,9 @@
   "manifest_version": "0.2",
   "name": "x-easy",
   "display_name": "X Easy",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Use X with one-time browser login. No X API keys, developer app, or password fields.",
-  "long_description": "X Easy uses a dedicated local Helium/Chrome/Edge/Chromium browser profile. Import it, run x_login once, sign in directly on x.com, then use MCP tools to read the home timeline, search, accounts, threads, mentions, notifications, bookmarks and lists, or explicitly post, reply, like, repost and bookmark. Browser debugging stays on loopback with a browser-assigned random port. Writes are deliberately rate-limited and duplicate-protected.",
+  "long_description": "X Easy uses a dedicated local Helium/Chrome/Edge/Chromium browser profile. Import it, run x_login once, sign in directly on x.com, then use MCP tools to read the home timeline, search, accounts, threads, mentions, notifications, bookmarks and lists, or explicitly post, reply, like, repost and bookmark. Browser debugging stays on loopback with a browser-assigned random port. Shared filesystem coordination spaces navigation and scrolling, tracks X 429/503 responses and prevents unsafe duplicate or ambiguous browser writes across processes.",
   "author": {
     "name": "X Easy contributors"
   },
