@@ -429,7 +429,7 @@ test("TikTok release packager is byte-for-byte deterministic and excludes node_m
       "all ZIP entries must use fixed regular-file 0644 attributes");
 
     const workflow = fs.readFileSync(workflowPath, "utf8");
-    assert.match(workflow, /node tiktok-easy\/scripts\/package-release\.mjs/);
+    assert.match(workflow, /node tiktok-easy\/scripts\/build-v0\.1\.2\.mjs/);
     assert.doesNotMatch(workflow, /\bzip\s+-X\b/);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });

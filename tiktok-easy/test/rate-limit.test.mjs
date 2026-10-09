@@ -2,18 +2,17 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
+import { readZipEntry } from "./zip.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const archive = path.join(root, "tiktok-easy-v0.1.2.mcpb");
 const sourceArchive = path.join(root, "tiktok-easy-v0.1.2-source.zip");
 
 function fromZip(archivePath, name) {
-  const result = spawnSync("tar", ["-xOf", archivePath, name], { encoding: null, maxBuffer: 16 * 1024 * 1024 });
-  assert.equal(result.status, 0, result.stderr?.toString());
-  return result.stdout;
+  return readZipEntry(archivePath, name);
 }
 
 function fixture(t) {

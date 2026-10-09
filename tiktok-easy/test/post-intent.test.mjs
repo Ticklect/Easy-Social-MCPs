@@ -2,9 +2,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
+import { extractZip } from "./zip.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const mcpb = path.join(root, "tiktok-easy-v0.1.2.mcpb");
@@ -12,8 +13,7 @@ const mcpb = path.join(root, "tiktok-easy-v0.1.2.mcpb");
 function prepare(t) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "tiktok-post-idempotency-"));
   t.after(() => fs.rmSync(tmp, { force: true, recursive: true }));
-  const unpacked = spawnSync("tar", ["-xf", mcpb, "-C", tmp], { encoding: "utf8" });
-  assert.equal(unpacked.status, 0, unpacked.stderr);
+  extractZip(mcpb, tmp);
   const runtimeDir = path.join(tmp, "app", "dist", "runtime");
   const mediaPath = path.join(tmp, "video.mp4");
   fs.writeFileSync(mediaPath, "safe-offline-fake-video-bytes\n");
