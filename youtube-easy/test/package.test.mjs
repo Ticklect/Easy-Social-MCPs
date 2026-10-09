@@ -47,7 +47,12 @@ function smoke(entry) {
       clearTimeout(timer);
       resolve(stdout.trim().split(/\r?\n/).filter(Boolean).map(JSON.parse));
     });
-    child.stdin.end(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);
+    // Keep stdin open until both async MCP responses have been flushed.
+    // Closing stdin immediately races server shutdown on faster CI runners.
+    child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: {} })}\n${JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list", params: {} })}\n`);
+    child.stdout.on("data", () => {
+      if (stdout.split(/\r?\n/).filter(Boolean).length >= 2) child.stdin.end();
+    });
   });
 }
 
