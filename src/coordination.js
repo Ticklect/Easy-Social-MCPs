@@ -154,6 +154,110 @@ export async function withLease(options, fn) {
   finally { lease.release(); }
 }
 
+const REDDIT_MIN_REQUEST_GAP_MS = 2_500;
+const REDDIT_MIN_WRITE_GAP_MS = 12_000;
+const REDDIT_MAX_INLINE_WAIT_MS = 8_000;
+const REDDIT_DEFAULT_COOLDOWN_MS = 60_000;
+const REDDIT_MAX_COOLDOWN_MS = 24 * 60 * 60 * 1_000;
+
+function boundedDelayMs(value, max = REDDIT_MAX_COOLDOWN_MS) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.min(Math.ceil(n), max) : null;
+}
+
+export function retryAfterMs(value, now = Date.now()) {
+  if (value == null || String(value).trim() === "") return null;
+  const raw = String(value).trim();
+  if (/^\d+(?:\.\d+)?$/.test(raw)) return boundedDelayMs(Number(raw) * 1_000);
+  const date = Date.parse(raw);
+  return Number.isFinite(date) ? boundedDelayMs(Math.max(0, date - now)) : null;
+}
+
+function redditErrorDelayMs(response) {
+  const errors = response?.data?.json?.errors;
+  if (!Array.isArray(errors)) return null;
+  for (const entry of errors) {
+    if (!Array.isArray(entry) || String(entry[0]).toUpperCase() !== "RATELIMIT") continue;
+    const text = String(entry.slice(1).join(" "));
+    const match = text.match(/(\d+(?:\.\d+)?)\s*(seconds?|minutes?|hours?|days?)/i);
+    if (!match) return REDDIT_DEFAULT_COOLDOWN_MS;
+    const scale = /^day/i.test(match[2]) ? 86_400_000 : /^hour/i.test(match[2]) ? 3_600_000
+      : /^minute/i.test(match[2]) ? 60_000 : 1_000;
+    return boundedDelayMs(Number(match[1]) * scale) ?? REDDIT_DEFAULT_COOLDOWN_MS;
+  }
+  return null;
+}
+
+export function redditResponseCooldown(response, now = Date.now()) {
+  const headers = response?.rateLimit || {};
+  const retryMs = retryAfterMs(headers.retryAfter, now);
+  const remaining = headers.remaining == null || String(headers.remaining).trim() === ""
+    ? null : Number(headers.remaining);
+  const resetMs = headers.reset == null || String(headers.reset).trim() === ""
+    ? null : boundedDelayMs(Number(headers.reset) * 1_000);
+  const apiCooldown = redditErrorDelayMs(response);
+  let cooldownMs = apiCooldown || 0;
+  if (response?.status === 429) cooldownMs = Math.max(cooldownMs, REDDIT_DEFAULT_COOLDOWN_MS);
+  if (response?.status === 503) cooldownMs = Math.max(cooldownMs, 15_000);
+  if (response?.status === 429 || response?.status === 503 || apiCooldown !== null) {
+    cooldownMs = Math.max(cooldownMs, retryMs ?? 0);
+  }
+  if (Number.isFinite(remaining) && remaining <= 2 && resetMs !== null) {
+    cooldownMs = Math.max(cooldownMs, resetMs + 1_000);
+  }
+  let extraGapMs = 0;
+  if (Number.isFinite(remaining) && remaining > 2 && remaining <= 10 && resetMs !== null) {
+    extraGapMs = Math.min(30_000, Math.ceil(resetMs / (remaining - 1)));
+  }
+  return { cooldownMs: Math.min(cooldownMs, REDDIT_MAX_COOLDOWN_MS), extraGapMs,
+    throttled: response?.status === 429 || response?.status === 503 || apiCooldown !== null };
+}
+
+export class RedditCooldownError extends Error {
+  constructor(waitMs, { knownNotApplied = true, unavailable = false } = {}) {
+    super(`Reddit is ${unavailable ? "temporarily unavailable" : "rate-limiting requests"}. Retry in about ${Math.ceil(waitMs / 1_000)} seconds; the shared cooldown is being respected.`);
+    this.name = "RedditCooldownError";
+    // A 503 response to a write may have arrived after the operation was applied.
+    this.knownNotApplied = knownNotApplied;
+    this.retryAfterMs = waitMs;
+  }
+}
+
+/** Serializes Reddit HTTP requests across MCP processes using the same local profile. */
+export async function coordinatedRedditRequest({ root, request, gapMs = REDDIT_MIN_REQUEST_GAP_MS,
+  write = false, writeGapMs = REDDIT_MIN_WRITE_GAP_MS,
+  maxWaitMs = write ? 16_000 : REDDIT_MAX_INLINE_WAIT_MS }) {
+  return await withLease({ root, namespace: "reddit-request", key: "browser-profile",
+    leaseMs: 45_000, waitMs: 120_000 }, async () => {
+    const stateFile = path.join(statePaths(root).coordinationDir, "reddit-requests.json");
+    const state = readJson(stateFile) || {};
+    const waitMs = Math.max(0, Number(state.cooldownUntil || 0) - Date.now(),
+      Number(state.nextRequestAt || 0) - Date.now(),
+      write ? Number(state.lastWriteRequestAt || 0) + writeGapMs - Date.now() : 0,
+      Number(state.lastRequestAt || 0) + gapMs - Date.now());
+    if (waitMs > maxWaitMs) throw new RedditCooldownError(waitMs);
+    if (waitMs) await sleep(waitMs);
+    const dispatchedAt = Date.now();
+    const dispatchState = {
+      ...state, lastRequestAt: dispatchedAt,
+      ...(write ? { lastWriteRequestAt: dispatchedAt } : {}),
+    };
+    atomicJsonWrite(stateFile, dispatchState);
+
+    const response = await request();
+    const policy = redditResponseCooldown(response);
+    const nextState = {
+      ...dispatchState,
+      cooldownUntil: Math.max(Number(state.cooldownUntil || 0), Date.now() + policy.cooldownMs),
+      nextRequestAt: Date.now() + policy.extraGapMs,
+    };
+    atomicJsonWrite(stateFile, nextState);
+    if (policy.throttled) throw new RedditCooldownError(policy.cooldownMs,
+      { knownNotApplied: response?.status !== 503, unavailable: response?.status === 503 });
+    return response;
+  });
+}
+
 function writeRecordPath(root, account, fingerprint) {
   const { writesDir } = statePaths(root);
   ensureDir(writesDir);
@@ -244,7 +348,7 @@ export async function coordinatedWrite({
       return { status: "reused", result: normalizeResult(previous.result), persisted: true };
     }
 
-    if (previous?.sentAt && previous.status !== "success") {
+    if (previous?.sentAt && previous.status !== "success" && !previous.knownNotApplied) {
       lease.update({ phase: "reconciling-stale" });
       const rec = await reconcileExisting({ reconcile, record: previous });
       if (rec.status === "found") {
@@ -321,6 +425,8 @@ export async function coordinatedWrite({
         atomicJsonWrite(recordFile, {
           ...record,
           status: "failed",
+          sentAt: null,
+          knownNotApplied: true,
           failedAt: Date.now(),
           message: error.message,
         });

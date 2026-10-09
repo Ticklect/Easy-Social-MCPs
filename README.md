@@ -10,14 +10,14 @@ This repository includes all four ready-to-use MCPs:
 
 | MCP | Start login | Download this MCP file |
 | --- | --- | --- |
-| [Reddit Easy](./README.md) | `reddit_login` | [`reddit-easy-v0.3.1.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/reddit-easy-v0.3.1/reddit-easy-v0.3.1.mcpb) |
+| [Reddit Easy](./README.md) | `reddit_login` | [`reddit-easy-v0.3.2.mcpb`](./reddit-easy-v0.3.2.mcpb) |
 | [X Easy](./x-easy/README.md) | `x_login` | [`x-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/x-easy-v0.1.0/x-easy-v0.1.0.mcpb) |
 | [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.1.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/tiktok-easy-v0.1.1/tiktok-easy-v0.1.1.mcpb) |
 | [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.0.mcpb`](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/youtube-easy-v0.1.0/youtube-easy-v0.1.0.mcpb) |
 
 ### Want all four?
 
-**[Download Easy Social MCPs All-in-One v0.1.1](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-social-mcps-v0.1.1/easy-social-mcps-v0.1.1.zip)**. It contains the installer plus Reddit Easy, X Easy, TikTok Easy, and YouTube Easy in one ZIP. Extract it once and follow the included README; no separate MCPB downloads are needed.
+**[Download Easy Social MCPs All-in-One v0.1.1](https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-social-mcps-v0.1.1/easy-social-mcps-v0.1.1.zip)**. It contains the installer plus Reddit Easy v0.3.1, X Easy, TikTok Easy, and YouTube Easy in one ZIP. For Reddit's newer request-limit controls, install the individual v0.3.2 MCPB above.
 
 ### Easiest setup: give this prompt to your coding agent
 
@@ -44,7 +44,7 @@ Extract the installer ZIP, place the downloaded `.mcpb` files beside `install-ea
 ```text
 node install-easy-mcp.mjs --host codex youtube-easy-v0.1.0.mcpb
 node install-easy-mcp.mjs --host claude youtube-easy-v0.1.0.mcpb
-node install-easy-mcp.mjs --host both reddit-easy-v0.3.1.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.1.mcpb youtube-easy-v0.1.0.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.2.mcpb x-easy-v0.1.0.mcpb tiktok-easy-v0.1.1.mcpb youtube-easy-v0.1.0.mcpb
 ```
 
 Restart Codex or Claude Code afterward. The first command installs only into Codex, the second only into Claude Code, and `--host both` installs into both.
@@ -81,7 +81,7 @@ I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same
 
 ## 30-second setup
 
-1. Download `reddit-easy.mcpb` or the versioned v0.3.0 bundle from Releases.
+1. Download `reddit-easy.mcpb` or the versioned v0.3.2 bundle from this repository.
 2. Import it into Chat On Steroids or another MCPB-compatible host.
 3. Ask the agent to run `reddit_login`.
 4. Sign in to Reddit in the dedicated browser window.
@@ -130,13 +130,19 @@ Show me the newest 50 posts from r/opensource, then keep going with the next pag
 Show me my mentions and unread inbox items.
 ```
 
-## Cross-process write safety in v0.3.1
+## Cross-process write safety in v0.3.x
 
 Reddit Easy now coordinates writes across completely separate MCP/Node processes that share the same local Reddit Easy state and browser profile. The first process acquires an account + request fingerprint lease before checking duplicates and holds it through submission and reconciliation. Successful fullname/permalink results are persisted, so a second process can reuse the prior result without sending another Reddit request.
 
 If a process crashes after a write may have been sent, Reddit Easy reconciles the intended post/comment against Reddit before doing anything else. It retries only when it can establish that the original write did not happen; otherwise it returns an explicit **UNCERTAIN** result rather than risk creating a duplicate.
 
 The dedicated browser profile has its own cross-process lease as well, preventing two MCP processes from silently starting/driving/erasing the same profile at once.
+
+## Shared request limits in v0.3.2
+
+Every Reddit JSON request passes through one filesystem-backed limiter shared by MCP processes using the same Reddit Easy profile. Requests are spaced by at least 2.5 seconds; HTTP writes are spaced by at least 12 seconds at dispatch, in addition to duplicate-write protection. When Reddit provides `Retry-After` or `X-Ratelimit-Remaining` / `X-Ratelimit-Reset`, the limiter conservatively honours those signals. HTTP 429, HTTP 503 and Reddit's JSON `RATELIMIT` errors create persisted cooldowns. Calls during a long cooldown return an explanation with an approximate retry time instead of repeatedly contacting Reddit. The limiter never automatically replays writes.
+
+These defaults are intentionally conservative and can slow down large batches. They reduce accidental bursts but **cannot guarantee an account will not be flagged**. Reddit's Data API rules require authorised access and registered OAuth clients; using unofficial browser-session endpoints remains subject to Reddit's rules and account restrictions.
 
 ## Writing tools
 
@@ -174,7 +180,8 @@ Use `reddit_forget_session` to close the dedicated browser and erase the local R
 - Reddit-returned posts, comments, messages, notifications, rules and flair text are explicitly labeled untrusted.
 - Identical successful writes are blocked for 10 minutes.
 - Concurrent duplicate writes are blocked.
-- Writes are spaced by at least 3.5 seconds.
+- All Reddit JSON requests are spaced by at least 2.5 seconds, with a 12-second minimum between write dispatches.
+- Server cooldowns persist across MCP process restarts, and throttled calls do not trigger immediate retries.
 - Cookies, passwords and session tokens are not intentionally logged.
 
 See [SECURITY.md](./SECURITY.md).
@@ -182,7 +189,8 @@ See [SECURITY.md](./SECURITY.md).
 ## Downloads and source
 
 - [`reddit-easy.mcpb`](./reddit-easy.mcpb) — current ready-to-import bundle
-- [Reddit Easy v0.3.1 release](../../releases/tag/reddit-easy-v0.3.1) — versioned MCPB, source ZIP and checksum
+- [`reddit-easy-v0.3.2.mcpb`](./reddit-easy-v0.3.2.mcpb) — current versioned MCPB
+- [Reddit Easy v0.3.1 release](../../releases/tag/reddit-easy-v0.3.1) — previous release, preserved unchanged
 - [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256) — checksum for the current bundle
 - [`manifest.json`](./manifest.json) — MCPB manifest
 

@@ -20,4 +20,10 @@ A lease is recorded before the duplicate check and held through the complete wri
 
 The dedicated browser profile is also protected by a cross-process lease so multiple MCP processes do not silently drive/start/erase the same profile concurrently. Stale leases are recoverable after their heartbeat expires. These controls reduce accidental repetition; they do not replace subreddit rules or Reddit's own controls.
 
+## Reddit rate limiting
+
+From v0.3.2, every JSON request (including identity, feeds, search, and reconciliation) shares a persisted local cooldown and dispatch schedule. It enforces a minimum 2.5-second request gap and a 12-second gap between HTTP write dispatches, honours available Reddit quota/reset and Retry-After headers, and pauses on 429/503 or JSON RATELIMIT responses. A server rejection is never automatically retried as a write; an ambiguous 503 write remains subject to reconciliation.
+
+Request pacing cannot guarantee access, permission, or account safety. Reddit's registered OAuth API is the appropriate route for authorised Data API access. Do not circumvent account restrictions or use extra accounts, proxy rotation, or fingerprint masking to avoid limits.
+
 Use `reddit_forget_session` to close the dedicated browser and erase Reddit Easy's local browser profile.
