@@ -61,12 +61,13 @@ function archiveEntries(filename) {
 }
 
 test("MCPB ships the exact current dist and manifest, source archive includes tests", () => {
+  const canonical = (data) => Buffer.from(data.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
   const version = manifest.version;
   const bundle = archiveEntries(path.join(root, `x-easy-v${version}.mcpb`));
   const source = archiveEntries(path.join(root, `x-easy-v${version}-source.zip`));
   for (const name of ["dist/index.js", "dist/coordination.js", "manifest.json", "package.json", "README.md", "SECURITY.md"]) {
-    assert.deepEqual(bundle.get(name), fs.readFileSync(path.join(root, name)), name);
+    assert.deepEqual(bundle.get(name), canonical(fs.readFileSync(path.join(root, name))), name);
   }
-  assert.deepEqual(source.get("src/index.js"), fs.readFileSync(path.join(root, "src", "index.js")));
-  assert.deepEqual(source.get("test/rate-limit.test.mjs"), fs.readFileSync(path.join(root, "test", "rate-limit.test.mjs")));
+  assert.deepEqual(source.get("src/index.js"), canonical(fs.readFileSync(path.join(root, "src", "index.js"))));
+  assert.deepEqual(source.get("test/rate-limit.test.mjs"), canonical(fs.readFileSync(path.join(root, "test", "rate-limit.test.mjs"))));
 });

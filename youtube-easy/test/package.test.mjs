@@ -8,6 +8,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
+const canonical = (data) => Buffer.from(data.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
 
 function zipEntries(file) {
   const data = fs.readFileSync(file);
@@ -65,7 +66,7 @@ test("build creates a self-contained MCPB, source ZIP, and matching SHA-256", as
     assert.equal(entries.has(name), true, name);
   }
   for (const name of fs.readdirSync(path.join(root, "src"))) {
-    assert.deepEqual(entries.get(`dist/${name}`), fs.readFileSync(path.join(root, "src", name)), `packaged runtime ${name} must match checked-in source`);
+    assert.deepEqual(entries.get(`dist/${name}`), canonical(fs.readFileSync(path.join(root, "src", name))), `packaged runtime ${name} must match checked-in source`);
   }
   assert.equal(JSON.parse(entries.get("manifest.json")).version, "0.1.1");
   assert.equal(JSON.parse(entries.get("manifest.json")).tools.length, 17);
