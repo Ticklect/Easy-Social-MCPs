@@ -38,7 +38,7 @@ test("MCP initialize and tools/list expose all required YouTube Easy tools", asy
   const init = responses.find((r) => r.id === 1);
   const listed = responses.find((r) => r.id === 2);
   assert.equal(init.result.serverInfo.name, "youtube-easy");
-  assert.equal(init.result.serverInfo.version, "0.1.1");
+  assert.equal(init.result.serverInfo.version, "0.1.2");
 
   const names = listed.result.tools.map((tool) => tool.name).sort();
   assert.deepEqual(names, [

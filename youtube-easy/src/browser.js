@@ -24,6 +24,8 @@ export function browserCandidates(platform = process.platform, env = process.env
       out.push(p.join(base, "Google", "Chrome", "Application", "chrome.exe"));
       out.push(p.join(base, "Microsoft", "Edge", "Application", "msedge.exe"));
       out.push(p.join(base, "Chromium", "Application", "chrome.exe"));
+      out.push(p.join(base, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"));
+      out.push(p.join(base, "Vivaldi", "Application", "vivaldi.exe"));
     }
     if (env.LOCALAPPDATA) {
       const base = env.LOCALAPPDATA;
@@ -33,6 +35,9 @@ export function browserCandidates(platform = process.platform, env = process.env
       out.push(p.join(base, "Google", "Chrome", "Application", "chrome.exe"));
       out.push(p.join(base, "Microsoft", "Edge", "Application", "msedge.exe"));
       out.push(p.join(base, "Chromium", "Application", "chrome.exe"));
+      out.push(p.join(base, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"));
+      out.push(p.join(base, "Vivaldi", "Application", "vivaldi.exe"));
+      out.push(p.join(base, "Programs", "Opera", "launcher.exe"));
     }
   } else if (platform === "darwin") {
     out.push(
@@ -40,6 +45,9 @@ export function browserCandidates(platform = process.platform, env = process.env
       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
       "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
       "/Applications/Chromium.app/Contents/MacOS/Chromium",
+      "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+      "/Applications/Vivaldi.app/Contents/MacOS/Vivaldi",
+      "/Applications/Opera.app/Contents/MacOS/Opera",
     );
   } else {
     out.push(
@@ -51,6 +59,9 @@ export function browserCandidates(platform = process.platform, env = process.env
       "/usr/bin/chromium-browser",
       "/usr/bin/microsoft-edge",
       "/usr/bin/microsoft-edge-stable",
+      "/usr/bin/brave-browser",
+      "/usr/bin/vivaldi",
+      "/usr/bin/opera",
     );
   }
   return [...new Set(out)].filter(exists);
@@ -224,7 +235,12 @@ export class YouTubeBrowser {
     this.stateDir = path.resolve(stateDir || env.YOUTUBE_EASY_STATE_DIR || path.join(defaultDataRoot(platform, env), "ChatOnSteroids", "YouTubeEasy"));
     this.profileDir = path.join(this.stateDir, "browser-profile");
     this.portFile = path.join(this.profileDir, "DevToolsActivePort");
+    this.externalTabFile = path.join(this.stateDir, "external-browser-tab.json");
     this.candidateProvider = candidateProvider || (() => browserCandidates(platform, env));
+    this.existingDebugPort = env.EASY_SOCIAL_BROWSER_DEBUG_PORT || null;
+    this.browserMode = env.EASY_SOCIAL_BROWSER_MODE || "auto";
+    this.bridgeKeyFile = path.join(defaultDataRoot(platform, env), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key");
+    this.usingExternalBrowser = false;
     ensurePrivateDir(this.fs, this.stateDir);
     ensurePrivateDir(this.fs, this.profileDir);
   }
@@ -253,6 +269,35 @@ export class YouTubeBrowser {
   }
 
   async start() {
+    if (this.existingDebugPort !== null) {
+      const value = this.existingDebugPort;
+      if (!/^[1-9][0-9]{0,4}$/.test(value) || Number(value) > 65535) {
+        throw new Error("EASY_SOCIAL_BROWSER_DEBUG_PORT must be a local TCP port (1-65535).");
+      }
+      const port = Number(value);
+      const info = await fetchJson(this.fetch, `http://127.0.0.1:${port}/json/version`);
+      if (!info?.webSocketDebuggerUrl) {
+        throw new Error(`The existing browser is not accepting local debugger connections on 127.0.0.1:${port}. YouTube Easy did not launch another browser.`);
+      }
+      validateDebuggerWs(info.webSocketDebuggerUrl, port);
+      this.usingExternalBrowser = true;
+      return port;
+    }
+    if (this.fs.existsSync(this.bridgeKeyFile)) {
+      const key = this.fs.readFileSync(this.bridgeKeyFile, "utf8").trim();
+      const info = await fetchJson(this.fetch, "http://127.0.0.1:19411/json/version",
+        { headers: { Authorization: `Bearer ${key}` } }, 700);
+      if (info?.Browser !== "EasySocialCompanion/v1") {
+        throw new Error("Easy Social browser companion is configured but unavailable. Start the server and connect the Helium/Chromium extension.");
+      }
+      validateDebuggerWs(info.webSocketDebuggerUrl, 19411);
+      this.usingExternalBrowser = true;
+      return 19411;
+    }
+    if (this.browserMode === "existing") {
+      throw new Error("Existing-browser mode requires the browser companion or EASY_SOCIAL_BROWSER_DEBUG_PORT.");
+    }
+    this.usingExternalBrowser = false;
     const running = await this.findRunningPort();
     if (running) return running;
     try { this.fs.unlinkSync(this.portFile); } catch {}
@@ -287,25 +332,44 @@ export class YouTubeBrowser {
   }
 
   async listTargets(port) {
-    const targets = await fetchJson(this.fetch, `http://127.0.0.1:${port}/json/list`);
+    const targets = await fetchJson(this.fetch, `http://127.0.0.1:${port}/json/list`, this.bridgeHeaders(port));
     return Array.isArray(targets) ? targets : [];
   }
 
   async createPage(port, url) {
     const safe = parseGoogleYoutubeUrl(url).href;
-    const target = await fetchJson(this.fetch, `http://127.0.0.1:${port}/json/new?${encodeURIComponent(safe)}`, { method: "PUT" }, 4_000);
+    const target = await fetchJson(this.fetch, `http://127.0.0.1:${port}/json/new?${encodeURIComponent(safe)}`,
+      { method: "PUT", ...this.bridgeHeaders(port) }, 4_000);
     if (!target?.webSocketDebuggerUrl) throw new Error("Could not open a YouTube browser tab.");
     validateDebuggerWs(target.webSocketDebuggerUrl, port);
     parseGoogleYoutubeUrl(target.url || safe);
     return target;
+  }
+  bridgeHeaders(port) {
+    return this.usingExternalBrowser && !this.existingDebugPort && port === 19411
+      ? { headers: { Authorization: `Bearer ${this.fs.readFileSync(this.bridgeKeyFile, "utf8").trim()}` } }
+      : {};
   }
 
   async page(url = "https://studio.youtube.com/") {
     const safe = parseGoogleYoutubeUrl(url).href;
     const port = await this.start();
     const targets = await this.listTargets(port);
-    let target = selectReusableTarget(targets, port);
-    if (!target) target = await this.createPage(port, safe);
+    let ownedId = null;
+    if (this.usingExternalBrowser) {
+      try {
+        const stored = JSON.parse(this.fs.readFileSync(this.externalTabFile, "utf8"));
+        if (stored.port === port && typeof stored.id === "string") ownedId = stored.id;
+      } catch {}
+    }
+    const candidates = this.usingExternalBrowser ? targets.filter((item) => item.id === ownedId) : targets;
+    let target = selectReusableTarget(candidates, port);
+    if (!target) {
+      target = await this.createPage(port, safe);
+      if (this.usingExternalBrowser) {
+        this.fs.writeFileSync(this.externalTabFile, JSON.stringify({ port, id: target.id }), { mode: 0o600 });
+      }
+    }
     const client = new CdpClient(target.webSocketDebuggerUrl, port, { WebSocketClass: this.WebSocketClass });
     await client.connect();
     await client.send("Page.enable");

@@ -41,7 +41,7 @@ export const TOOL_DEFINITIONS = [
   { name: "search_youtube", description: "Search public YouTube and return bounded structured results.", inputSchema: objectSchema({ query: string("Search query."), limit: { type: "integer", minimum: 1, maximum: 25 } }, ["query"]), annotations: readOnly },
   { name: "get_video", description: "Read public metadata for a YouTube watch URL or video ID.", inputSchema: objectSchema({ video: string("YouTube video ID or approved watch URL.") }, ["video"]), annotations: readOnly },
   { name: "get_transcript", description: "Read a transcript when the public watch page exposes one; otherwise report unavailable.", inputSchema: objectSchema({ video: string("YouTube video ID or approved watch URL.") }, ["video"]), annotations: readOnly },
-  { name: "youtube_forget_session", description: "Close the dedicated browser and erase only YouTube Easy's local browser profile.", inputSchema: objectSchema(), annotations: destructive },
+  { name: "youtube_forget_session", description: "Erase only YouTube Easy's dedicated browser profile. An attached existing browser and its Google login are preserved.", inputSchema: objectSchema(), annotations: destructive },
 ];
 
 export const TOOL_NAMES = TOOL_DEFINITIONS.map((tool) => tool.name);

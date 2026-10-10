@@ -126,6 +126,74 @@ test("dedicated browser launch binds loopback, uses an ephemeral port, and isola
   assert.equal(calls[0].options.detached, true);
 });
 
+test("external browser uses its own YouTube tab and preserves preexisting signed-in tabs", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-external-tab-"));
+  const calls = [];
+  class FakeWebSocket {
+    constructor() {
+      this.listeners = new Map();
+      queueMicrotask(() => this.listeners.get("open")?.({}));
+    }
+    addEventListener(event, listener) { this.listeners.set(event, listener); }
+    send(raw) {
+      const req = JSON.parse(raw);
+      calls.push(req);
+      const result = req.method === "Runtime.evaluate"
+        ? { result: { value: { ready: "complete", href: "https://studio.youtube.com/" } } } : {};
+      queueMicrotask(() => this.listeners.get("message")?.({ data: JSON.stringify({ id: req.id, result }) }));
+    }
+    close() { this.listeners.get("close")?.({}); }
+  }
+  const browser = new YouTubeBrowser({
+    stateDir: root,
+    env: { EASY_SOCIAL_BROWSER_DEBUG_PORT: "43117" },
+    WebSocketClass: FakeWebSocket,
+  });
+  browser.start = async () => { browser.usingExternalBrowser = true; return 43117; };
+  const personal = { id: "personal", type: "page", url: "https://www.youtube.com/feed/subscriptions",
+    webSocketDebuggerUrl: "ws://127.0.0.1:43117/devtools/page/personal" };
+  const owned = { id: "owned", type: "page", url: "https://studio.youtube.com/",
+    webSocketDebuggerUrl: "ws://127.0.0.1:43117/devtools/page/owned" };
+  let created = 0;
+  browser.listTargets = async () => created ? [personal, owned] : [personal];
+  browser.createPage = async () => { created++; return owned; };
+  const first = await browser.page();
+  first.close();
+  const second = await browser.page();
+  second.close();
+  assert.equal(created, 1);
+  assert.deepEqual(JSON.parse(fs.readFileSync(browser.externalTabFile, "utf8")), { port: 43117, id: "owned" });
+  assert.equal(calls.filter((call) => call.method === "Page.navigate").length, 2);
+});
+
+test("existing-browser mode connects to the configured debugger without spawning a profile", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-existing-"));
+  const seen = [];
+  const browser = new YouTubeBrowser({
+    stateDir: root, env: { EASY_SOCIAL_BROWSER_DEBUG_PORT: "43117" },
+    fetchFn: async (url) => {
+      seen.push(url);
+      return { ok: true, json: async () => ({ webSocketDebuggerUrl: "ws://127.0.0.1:43117/devtools/browser/current" }) };
+    },
+    spawnFn: () => { throw new Error("Existing-browser mode must never spawn"); },
+    candidateProvider: () => { throw new Error("No executable discovery should be needed"); },
+  });
+  assert.equal(await browser.start(), 43117);
+  assert.deepEqual(seen, ["http://127.0.0.1:43117/json/version"]);
+  assert.equal(await browser.closeDedicatedBrowser(), false);
+});
+
+test("existing-browser-only mode refuses to launch a separate profile when the companion is absent", async () => {
+  const browser = new YouTubeBrowser({
+    stateDir: fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-no-companion-")),
+    env: { EASY_SOCIAL_BROWSER_MODE: "existing" },
+    fetchFn: async () => { throw new Error("Connection refused"); },
+    spawnFn: () => { throw new Error("Must not spawn"); },
+    candidateProvider: () => { throw new Error("Must not discover browsers"); },
+  });
+  await assert.rejects(() => browser.start(), /requires the browser companion or EASY_SOCIAL_BROWSER_DEBUG_PORT/);
+});
+
 test("CDP file assignment resolves one input and sends only the supplied local path", async () => {
   const sent = [];
   const client = Object.create(CdpClient.prototype);

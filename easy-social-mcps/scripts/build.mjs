@@ -94,6 +94,13 @@ const sources = [
   ["README.md", path.join(packageDir, "README.md"), true],
   ["LICENSE", path.join(repoRoot, "LICENSE"), true],
   ["install-easy-mcp.mjs", path.join(repoRoot, "easy-mcp-installer", "install-easy-mcp.mjs"), true],
+  ...["README.md", "server.mjs", "package.json", "package-lock.json",
+    "extension/manifest.json", "extension/background.js",
+    "extension/popup.html", "extension/popup.js",
+    "test/bridge.test.mjs"].map((name) => [
+      `browser-companion/${name}`,
+      path.join(repoRoot, "browser-companion", name), true,
+    ]),
   ...bundles,
 ];
 

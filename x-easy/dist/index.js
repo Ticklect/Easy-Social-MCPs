@@ -14,7 +14,7 @@ import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import { coordinatedXWrite, noteHttpResponse, paceRead, withLease } from "./coordination.js";
 
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
 const MAX_STDIO_BUFFER = 2 * 1024 * 1024;
@@ -37,6 +37,7 @@ function dataRoot() {
 const appDir = path.join(dataRoot(), "ChatOnSteroids", "XEasy");
 const profileDir = path.join(appDir, "browser-profile");
 const devToolsPortFile = path.join(profileDir, "DevToolsActivePort");
+const externalTabFile = path.join(appDir, "external-browser-tab.json");
 const auditLogFile = path.join(appDir, "writes.log");
 
 function ensurePrivateDir(dir) {
@@ -62,6 +63,8 @@ function browserCandidates() {
       out.push(path.join(base, "Helium", "Application", "chrome.exe"));
       out.push(path.join(base, "Google", "Chrome", "Application", "chrome.exe"));
       out.push(path.join(base, "Microsoft", "Edge", "Application", "msedge.exe"));
+      out.push(path.join(base, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"));
+      out.push(path.join(base, "Vivaldi", "Application", "vivaldi.exe"));
     }
     if (local) {
       out.push(path.join(local, "imput", "Helium", "Application", "chrome.exe"));
@@ -69,12 +72,18 @@ function browserCandidates() {
       out.push(path.join(local, "Helium", "Application", "chrome.exe"));
       out.push(path.join(local, "Google", "Chrome", "Application", "chrome.exe"));
       out.push(path.join(local, "Microsoft", "Edge", "Application", "msedge.exe"));
+      out.push(path.join(local, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"));
+      out.push(path.join(local, "Vivaldi", "Application", "vivaldi.exe"));
+      out.push(path.join(local, "Programs", "Opera", "launcher.exe"));
     }
   } else if (IS_MAC) {
     out.push("/Applications/Helium.app/Contents/MacOS/Helium");
     out.push("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
     out.push("/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge");
     out.push("/Applications/Chromium.app/Contents/MacOS/Chromium");
+    out.push("/Applications/Brave Browser.app/Contents/MacOS/Brave Browser");
+    out.push("/Applications/Vivaldi.app/Contents/MacOS/Vivaldi");
+    out.push("/Applications/Opera.app/Contents/MacOS/Opera");
   } else {
     out.push(
       "/usr/bin/helium",
@@ -83,7 +92,10 @@ function browserCandidates() {
       "/usr/bin/google-chrome-stable",
       "/usr/bin/chromium",
       "/usr/bin/chromium-browser",
-      "/usr/bin/microsoft-edge"
+      "/usr/bin/microsoft-edge",
+      "/usr/bin/brave-browser",
+      "/usr/bin/vivaldi",
+      "/usr/bin/opera"
     );
   }
   return [...new Set(out)].filter((candidate) => {
@@ -126,7 +138,12 @@ async function fetchJson(url, options = {}, timeoutMs = 2_500) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, { ...options, signal: controller.signal });
+    let headers = options.headers;
+    if (url.startsWith("http://127.0.0.1:19411/json/")) {
+      const key = fs.readFileSync(path.join(dataRoot(), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key"), "utf8").trim();
+      headers = { ...headers, Authorization: `Bearer ${key}` };
+    }
+    const res = await fetch(url, { ...options, headers, signal: controller.signal });
     if (!res.ok) return null;
     return await res.json();
   } catch {
@@ -159,7 +176,48 @@ async function findRunningPort() {
   }
 }
 
+function existingBrowserPort() {
+  const value = process.env.EASY_SOCIAL_BROWSER_DEBUG_PORT;
+  if (value === undefined || value === "") return null;
+  if (!/^[1-9][0-9]{0,4}$/.test(value) || Number(value) > 65535) {
+    throw new Error("EASY_SOCIAL_BROWSER_DEBUG_PORT must be a local TCP port (1-65535).");
+  }
+  return Number(value);
+}
+
+async function connectExistingBrowserPort() {
+  const port = existingBrowserPort();
+  if (!port) {
+    const keyFile = path.join(dataRoot(), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key");
+    if (fs.existsSync(keyFile)) {
+      const info = await fetchJson("http://127.0.0.1:19411/json/version", {}, 700);
+      if (info?.Browser === "EasySocialCompanion/v1") {
+        validateLocalDebuggerWs(info.webSocketDebuggerUrl, 19411);
+        return 19411;
+      }
+      throw new Error("Easy Social browser companion is configured but unavailable. Start its local server and connect the Helium/Chromium extension.");
+    }
+    if (process.env.EASY_SOCIAL_BROWSER_MODE === "existing") {
+      throw new Error("Existing-browser mode requires the browser companion or EASY_SOCIAL_BROWSER_DEBUG_PORT.");
+    }
+    return null;
+  }
+  const info = await fetchJson(`http://127.0.0.1:${port}/json/version`);
+  if (!info?.webSocketDebuggerUrl) {
+    throw new Error(`The existing browser is not accepting local debugger connections on 127.0.0.1:${port}. X Easy did not launch another browser.`);
+  }
+  validateLocalDebuggerWs(info.webSocketDebuggerUrl, port);
+  return port;
+}
+
+function isExternalPort(port) {
+  return Boolean(existingBrowserPort()) || (port === 19411 &&
+    fs.existsSync(path.join(dataRoot(), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key")));
+}
+
 async function startBrowser() {
+  const existing = await connectExistingBrowserPort();
+  if (existing) return existing;
   const running = await findRunningPort();
   if (running) return running;
 
@@ -302,11 +360,25 @@ async function createPage(port, url) {
   return target;
 }
 
+function readOwnedExternalTab(port) {
+  try {
+    const saved = JSON.parse(fs.readFileSync(externalTabFile, "utf8"));
+    return saved.port === port && typeof saved.id === "string" ? saved.id : null;
+  } catch { return null; }
+}
+
+function saveOwnedExternalTab(port, page) {
+  fs.writeFileSync(externalTabFile, JSON.stringify({ port, id: page.id }), { mode: 0o600 });
+}
+
 async function getPageClient() {
   const port = await startBrowser();
   const targets = await listTargets(port);
+  const external = isExternalPort(port);
+  const ownedId = external ? readOwnedExternalTab(port) : null;
   let page = targets.find((target) => {
     if (target.type !== "page" || !target.webSocketDebuggerUrl) return false;
+    if (external && target.id !== ownedId) return false;
     try {
       parseXHttpsUrl(target.url);
       validateLocalDebuggerWs(target.webSocketDebuggerUrl, port);
@@ -315,7 +387,10 @@ async function getPageClient() {
       return false;
     }
   });
-  if (!page) page = await createPage(port, "https://x.com/home");
+  if (!page) {
+    page = await createPage(port, "https://x.com/home");
+    if (external) saveOwnedExternalTab(port, page);
+  }
 
   const cdp = new CdpClient(page.webSocketDebuggerUrl, port);
   await cdp.connect();
@@ -386,7 +461,8 @@ async function openXUrl(url) {
   return await withLease(appDir, "profile", "browser-profile", async () => {
     await paceRead(appDir);
     const port = await startBrowser();
-    await createPage(port, safe);
+    const page = await createPage(port, safe);
+    if (isExternalPort(port)) saveOwnedExternalTab(port, page);
   });
 }
 
@@ -1109,7 +1185,7 @@ const tools = [
   },
   {
     name: "x_forget_session",
-    description: "Close X Easy's dedicated browser and erase only its local browser profile, removing the locally saved X session. This does not delete or modify the X account itself.",
+    description: "Clear X Easy's dedicated browser profile. An attached existing browser and its saved X login stay unchanged.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { title: "Forget X session", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     execute: async () => await withLease(appDir, "profile", "browser-profile", async () => {
@@ -1117,7 +1193,9 @@ const tools = [
       try { fs.rmSync(profileDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }); }
       catch (error) { throw new Error(`Could not erase the X Easy browser profile. Close its browser window and try again. (${error?.message || "unknown error"})`); }
       ensurePrivateDir(profileDir);
-      return "Forgot the local X Easy browser session. Run x_login to sign in again.";
+      return existingBrowserPort()
+        ? "Cleared X Easy's dedicated profile. The existing browser and its X login are unchanged."
+        : "Forgot the local X Easy browser session. Run x_login to sign in again.";
     }),
   },
 ];

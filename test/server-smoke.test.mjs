@@ -31,7 +31,7 @@ test("packaged runtime loads and advertises Reddit tools over MCP", async () => 
       replies,
       new Promise((_, reject) => { timeout = setTimeout(() => reject(new Error("MCP response timeout")), 5_000); }),
     ]);
-    assert.equal(messages.get(1).result.serverInfo.version, "0.3.2");
+    assert.equal(messages.get(1).result.serverInfo.version, "0.3.3");
     assert.equal(messages.get(2).result.tools.length, 22);
   } finally {
     clearTimeout(timeout);

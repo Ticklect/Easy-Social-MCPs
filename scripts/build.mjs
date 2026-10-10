@@ -4,11 +4,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const repositoryRoot = path.dirname(root);
-const version = "0.1.2";
-const artifactBase = `youtube-easy-v${version}`;
+const version = JSON.parse(fs.readFileSync(path.join(root, "manifest.json"), "utf8")).version;
+const artifactBase = `reddit-easy-v${version}`;
 
-// Git autocrlf differs by OS. Package the same UTF-8/LF bytes everywhere.
+// Git's autocrlf setting must not alter the bytes of a published bundle.
+// All files packaged by X Easy are text; normalize before writing dist/ZIPs.
 const canonical = (data) => Buffer.from(data.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
 
 function crcTable() {
@@ -91,34 +91,35 @@ function file(name, archiveName = name) {
   return { name: archiveName, data: canonical(fs.readFileSync(path.join(root, name))) };
 }
 
-function repositoryFile(name, archiveName = name) {
-  return { name: archiveName, data: canonical(fs.readFileSync(path.join(repositoryRoot, name))) };
-}
-
 const outIndex = process.argv.indexOf("--out");
 const outDir = path.resolve(outIndex >= 0 ? process.argv[outIndex + 1] : root);
 if (outIndex >= 0 && !process.argv[outIndex + 1]) throw new Error("--out requires a directory.");
 fs.mkdirSync(outDir, { recursive: true });
 
 const runtime = collect(path.join(root, "src"), "dist");
+const distDir = path.join(root, "dist");
+fs.mkdirSync(distDir, { recursive: true });
+for (const entry of runtime) {
+  fs.writeFileSync(path.join(root, entry.name), entry.data);
+}
 const packageEntries = [
   file("manifest.json"), file("package.json"), file("README.md"), file("SECURITY.md"),
-  file("LICENSE"), file("THIRD_PARTY_LICENSES.md"), ...runtime,
+  file("LICENSE"), ...runtime,
 ];
 const sourceEntries = [
-  file("manifest.json"), file("package.json"), file("README.md"), file("SECURITY.md"),
-  file("LICENSE"), file("THIRD_PARTY_LICENSES.md"), ...collect(path.join(root, "src"), "src"),
-  ...collect(path.join(root, "test"), "test"), ...collect(path.join(root, "scripts"), "scripts"),
-  repositoryFile(".github/workflows/build-youtube-easy.yml"),
-  repositoryFile("docs/superpowers/specs/2026-09-19-youtube-easy-design.md", "docs/youtube-easy-design.md"),
-  repositoryFile("docs/superpowers/plans/2026-09-19-youtube-easy.md", "docs/youtube-easy-plan.md"),
+  file("manifest.json"), file("package.json"), file("package-lock.json"), file("README.md"), file("SECURITY.md"),
+  file("LICENSE"), ...collect(path.join(root, "src"), "src"),
+  ...runtime, ...collect(path.join(root, "test"), "test"), ...collect(path.join(root, "scripts"), "scripts"),
 ];
 
 const mcpbPath = path.join(outDir, `${artifactBase}.mcpb`);
 const sourcePath = path.join(outDir, `${artifactBase}-source.zip`);
 fs.writeFileSync(mcpbPath, makeZip(packageEntries));
 fs.writeFileSync(sourcePath, makeZip(sourceEntries));
+const currentPath = path.join(outDir, "reddit-easy.mcpb");
+fs.copyFileSync(mcpbPath, currentPath);
 const hash = crypto.createHash("sha256").update(fs.readFileSync(mcpbPath)).digest("hex");
 fs.writeFileSync(path.join(outDir, `${artifactBase}.mcpb.sha256`), `${hash}  ${artifactBase}.mcpb\n`);
+fs.writeFileSync(path.join(outDir, "reddit-easy.mcpb.sha256"), `${hash}  reddit-easy.mcpb\n`);
 console.log(`Built ${path.relative(process.cwd(), mcpbPath) || path.basename(mcpbPath)}`);
 console.log(`SHA-256 ${hash}`);

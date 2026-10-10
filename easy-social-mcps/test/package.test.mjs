@@ -9,7 +9,7 @@ import test from "node:test";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageDir, "..");
-const expectedVersion = "0.1.2";
+const expectedVersion = "0.1.3";
 const archivePath = path.join(packageDir, `easy-social-mcps-v${expectedVersion}.zip`);
 const checksumPath = `${archivePath}.sha256`;
 
@@ -72,6 +72,15 @@ test("all-in-one build packages the installer and exact released bytes for all f
     "README.md",
     "SHA256SUMS.txt",
     "install-easy-mcp.mjs",
+    "browser-companion/README.md",
+    "browser-companion/server.mjs",
+    "browser-companion/package.json",
+    "browser-companion/package-lock.json",
+    "browser-companion/extension/manifest.json",
+    "browser-companion/extension/background.js",
+    "browser-companion/extension/popup.html",
+    "browser-companion/extension/popup.js",
+    "browser-companion/test/bridge.test.mjs",
     ...expectedBundleSources.keys(),
   ].sort());
   const guide = entries.get("README.md").toString("utf8");

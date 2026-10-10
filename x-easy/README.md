@@ -6,7 +6,7 @@ X Easy is an MCPB plugin for using X through a dedicated local browser session w
 
 ## 30-second setup
 
-1. Import `x-easy-v0.1.1.mcpb` into an MCPB-compatible host such as Chat On Steroids.
+1. Import `x-easy-v0.1.2.mcpb` into an MCPB-compatible host such as Chat On Steroids.
 2. Ask the agent to run `x_login`.
 3. Sign into X normally in the dedicated browser window.
 4. Run `x_status` once.
@@ -40,9 +40,9 @@ There is no X developer app setup, no client ID, no client secret, no API token 
 
 ## Download
 
-- [`x-easy-v0.1.1.mcpb`](./x-easy-v0.1.1.mcpb) — current ready-to-import bundle
-- [`x-easy-v0.1.1.mcpb.sha256`](./x-easy-v0.1.1.mcpb.sha256) — SHA-256 checksum
-- [`x-easy-v0.1.1-source.zip`](./x-easy-v0.1.1-source.zip) — maintained source and offline tests
+- [`x-easy-v0.1.2.mcpb`](./x-easy-v0.1.2.mcpb) — current ready-to-import bundle
+- [`x-easy-v0.1.2.mcpb.sha256`](./x-easy-v0.1.2.mcpb.sha256) — SHA-256 checksum
+- [`x-easy-v0.1.2-source.zip`](./x-easy-v0.1.2-source.zip) — maintained source and offline tests
 - [`x-easy-v0.1.0.mcpb`](./x-easy-v0.1.0.mcpb) — previous release, kept unchanged
 - [`manifest.json`](./manifest.json) — MCPB manifest
 
@@ -52,8 +52,13 @@ There is no X developer app setup, no client ID, no client secret, no API token 
 - Google Chrome
 - Microsoft Edge
 - Chromium
+- Brave, Vivaldi and Opera (supported Chromium builds)
 
 Windows Helium detection includes the common per-user install under `%LOCALAPPDATA%\imput\Helium\Application\chrome.exe`.
+
+An already running Chromium browser can be reused if it **already exposes a loopback CDP port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to the port in X Easy's environment, and optionally `EASY_SOCIAL_BROWSER_MODE=existing` to refuse a separate browser if the port is unavailable. X Easy keeps its existing tabs, profile and login intact. Ordinary Chrome windows do not expose CDP, and Chrome 136+ blocks remote debugging of its default profile.
+
+For an ordinary already signed-in window, the [Easy Social Browser Companion](../browser-companion/README.md) connects via an unpacked Chromium extension. It is intended for Helium, Chrome, Edge, Brave, Chromium, Vivaldi and Opera, and is automatically discovered after pairing. Firefox and Safari require a separate integration.
 
 ## Safety
 

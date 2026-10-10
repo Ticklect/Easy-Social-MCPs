@@ -4,7 +4,7 @@ YouTube Easy is a ready-to-import MCP bundle for uploading and managing videos t
 
 ## Setup
 
-1. Download `youtube-easy-v0.1.1.mcpb` from the release.
+1. Download `youtube-easy-v0.1.2.mcpb` from this repository.
 2. Import it into an MCPB-compatible host.
 3. Run `youtube_login`.
 4. Sign in to Google/YouTube normally in the dedicated browser window and choose the intended channel.
@@ -38,9 +38,13 @@ Reads and writes now share a persisted browser-profile pacing state across indep
 
 YouTube Easy detects Helium, Google Chrome, Microsoft Edge, and Chromium on Windows, macOS, and Linux. It starts a dedicated local profile and binds the browser debugger to `127.0.0.1` on an ephemeral port. The profile is separate from the user's everyday browser profile. `youtube_forget_session` closes the dedicated browser and removes only that profile.
 
+You can also use an already running Chromium browser if it **already exposes a loopback CDP port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to that port in YouTube Easy's environment. Add `EASY_SOCIAL_BROWSER_MODE=existing` to prevent launching a dedicated browser if that connection fails. Its existing Google sign-in is reused, and its profile is never closed or cleared. Normally opened Chrome windows do not expose CDP; Chrome 136+ also blocks remote debugging of its default profile.
+
+To use an ordinary signed-in Helium, Chrome, Edge, Brave, Chromium, Vivaldi or Opera window, install and pair the [Easy Social Browser Companion](../browser-companion/README.md). It is discovered automatically and preserves your existing Google/YouTube login without copying cookies. Firefox and Safari require a separate browser implementation.
+
 ## Important limitations
 
-This is an unofficial web-automation integration. YouTube can change Studio markup, labels, flows, anti-automation behavior, or account requirements without notice. v0.1.1 has extensive offline simulated-DOM and independent-process tests, but its maintainers have not performed a real Google login or live YouTube upload in this release. Do not treat offline test coverage as a claim that live uploading currently works.
+This is an unofficial web-automation integration. YouTube can change Studio markup, labels, flows, anti-automation behavior, or account requirements without notice. v0.1.2 has extensive offline simulated-DOM and independent-process tests, but its maintainers have not performed a real Google login or live YouTube upload in this release. Do not treat offline test coverage as a claim that live uploading currently works.
 
 Transcripts are returned only when the public watch page exposes its transcript panel. Playlist and tag operations stop as unsupported when Studio does not provide one uniquely identifiable, re-readable control. Processing/check status can be `null` when Studio does not expose a single unambiguous value.
 

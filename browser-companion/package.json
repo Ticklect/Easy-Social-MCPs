@@ -1,0 +1,13 @@
+{
+  "name": "easy-social-browser-companion",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check extension/background.js && node --check extension/popup.js",
+    "test": "node --test test/*.test.mjs"
+  },
+  "dependencies": { "ws": "^8.18.3" }
+}
