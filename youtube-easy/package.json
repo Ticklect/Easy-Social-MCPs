@@ -1,6 +1,6 @@
 {
   "name": "youtube-easy-mcp",
-  "version": "0.1.2",
+  "version": "0.1.4",
   "private": true,
   "type": "module",
   "main": "dist/server.js",

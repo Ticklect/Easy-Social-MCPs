@@ -1,6 +1,6 @@
 // MV3 Chromium extension: Helium, Chrome, Edge, Brave, Chromium, Vivaldi, Opera.
 const ENDPOINT = "ws://127.0.0.1:19411/extension";
-const SITES = ["reddit.com", "x.com", "twitter.com", "youtube.com", "accounts.google.com"];
+const SITES = ["reddit.com", "x.com", "twitter.com", "youtube.com", "accounts.google.com", "tiktok.com"];
 const watched = new Set();
 let connection = null;
 let connecting = false;
@@ -40,11 +40,17 @@ async function checkTab(tabId) {
   if (!allowed(tab.pendingUrl || tab.url)) throw new Error("This tab is outside the approved social websites.");
   return tab;
 }
+async function invalidateTab(tabId) {
+  if (!watched.delete(tabId)) return;
+  // Close the bridge's CDP clients immediately, even if debugger.detach fails.
+  send({ type: "invalidated", tabId });
+  try { await chrome.debugger.detach({ tabId }); } catch {}
+}
 async function dispatch(item) {
   if (item.type === "list") {
     return (await chrome.tabs.query({}))
       .filter((tab) => Number.isSafeInteger(tab.id) && allowed(tab.url))
-      .map(({ id, url, title }) => ({ id, url, title }));
+      .map(({ id, url, title, active }) => ({ id, url, title, active: Boolean(active) }));
   }
   if (item.type === "open") {
     if (!allowed(item.url)) throw new Error("Only approved social websites can be opened.");
@@ -62,7 +68,10 @@ async function dispatch(item) {
     const target = { tabId: item.tabId };
     if (!watched.has(item.tabId)) {
       // Chrome displays a native debugging permission indicator.
-      await chrome.debugger.attach(target, "1.3");
+      try { await chrome.debugger.attach(target, "1.3"); }
+      catch (error) {
+        throw new Error(`Could not attach the browser debugger to this tab: ${error?.message || error}`);
+      }
       watched.add(item.tabId);
     }
     return await chrome.debugger.sendCommand(target, item.method, item.params || {});
@@ -70,10 +79,24 @@ async function dispatch(item) {
   throw new Error("Unknown companion request.");
 }
 chrome.debugger.onEvent.addListener((target, method, params) => {
-  if (watched.has(target.tabId)) send({ type: "event", tabId: target.tabId, method, params });
+  if (!watched.has(target.tabId)) return;
+  if (method === "Page.frameNavigated" && !params?.frame?.parentId && !allowed(params?.frame?.url)) {
+    void invalidateTab(target.tabId);
+    return;
+  }
+  send({ type: "event", tabId: target.tabId, method, params });
 });
-chrome.debugger.onDetach.addListener((target) => watched.delete(target.tabId));
-chrome.tabs.onRemoved.addListener((id) => watched.delete(id));
+chrome.debugger.onDetach.addListener((target) => {
+  if (watched.delete(target.tabId)) send({ type: "invalidated", tabId: target.tabId });
+});
+chrome.tabs.onRemoved.addListener((id) => {
+  if (watched.delete(id)) send({ type: "invalidated", tabId: id });
+});
+chrome.tabs.onUpdated.addListener((id, changes) => {
+  if (watched.has(id) && typeof changes.url === "string" && !allowed(changes.url)) {
+    void invalidateTab(id);
+  }
+});
 
 async function connect() {
   if (connecting || connection?.readyState === WebSocket.OPEN || connection?.readyState === WebSocket.CONNECTING) return;
@@ -110,8 +133,21 @@ async function connect() {
 }
 chrome.runtime.onMessage.addListener((message, _sender, reply) => {
   if (message?.type === "status") {
-    reply({ connected: connection?.readyState === WebSocket.OPEN, error: lastError });
+    reply({ connected: connection?.readyState === WebSocket.OPEN,
+      connecting: connecting || connection?.readyState === WebSocket.CONNECTING, error: lastError });
     return false;
+  }
+  if (message?.type === "reconnect") {
+    (async () => {
+      const { pairingCode } = await chrome.storage.local.get("pairingCode");
+      if (!/^[0-9a-f]{64}$/.test(pairingCode || "")) {
+        return reply({ error: "Pair this browser once before reconnecting." });
+      }
+      await disconnect();
+      await connect();
+      reply({ ok: true });
+    })().catch((error) => reply({ error: String(error?.message || error) }));
+    return true;
   }
   if (message?.type === "pair" && /^[0-9a-f]{64}$/.test(message.code || "")) {
     (async () => {

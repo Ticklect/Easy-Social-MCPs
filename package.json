@@ -1,6 +1,6 @@
 {
   "name": "reddit-easy-mcp",
-  "version": "0.3.3",
+  "version": "0.3.5",
   "private": true,
   "type": "module",
   "main": "dist/index.js",

@@ -45,6 +45,6 @@ jobs:
           node - <<'NODE'
           const fs=require("fs");
           const m=JSON.parse(fs.readFileSync("manifest.json","utf8"));
-          if(m.version!=="0.3.3") throw new Error("manifest version mismatch");
+          if(m.version!=="0.3.5") throw new Error("manifest version mismatch");
           if(!Array.isArray(m.tools)||m.tools.length!==22) throw new Error("tool count mismatch");
           NODE

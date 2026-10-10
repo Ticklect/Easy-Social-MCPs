@@ -26,7 +26,9 @@ test("paired companion reuses an existing browser, creates its own allowed tabs 
   const base = `http://127.0.0.1:${port}`;
   const auth = { Authorization: `Bearer ${key}` };
   const session = new WebSocket(`ws://127.0.0.1:${port}/extension?key=${key}&browserId=${browserId}`, { origin });
-  const owned = [{ id: 51, url: "https://www.reddit.com/", title: "Logged-in Reddit" }];
+  const owned = [{ id: 51, url: "https://www.reddit.com/", title: "Logged-in Reddit", active: true },
+    { id: 53, url: "https://old.reddit.com/", title: "Earlier Reddit tab", active: false },
+    { id: 54, url: "https://x.com/home", title: "Opened X before companion", active: false }];
   const other = [{ id: 99, url: "https://example.com/private", title: "Unrelated tab" }];
   const actions = [];
   session.on("message", (raw) => {
@@ -53,11 +55,23 @@ test("paired companion reuses an existing browser, creates its own allowed tabs 
     const version = await (await fetch(base + "/json/version", { headers: auth })).json();
     assert.equal(version.Browser, "EasySocialCompanion/v1");
     const pages = await (await fetch(base + "/json/list", { headers: auth })).json();
-    assert.deepEqual(pages.map((page) => page.url), ["https://www.reddit.com/"]);
+    assert.deepEqual(pages.map((page) => page.url), [
+      "https://www.reddit.com/", "https://old.reddit.com/", "https://x.com/home"]);
+    assert.equal(pages[0].loginStatus, "unchecked");
+    assert.equal(pages[0].existing, true);
+    assert.equal(pages[0].active, true);
+    const filtered = await (await fetch(base + "/json/candidates?site=reddit", { headers: auth })).json();
+    assert.deepEqual(filtered.map((page) => page.url),
+      ["https://www.reddit.com/", "https://old.reddit.com/"]);
+    assert.equal(actions.filter((action) => action.type === "command" || action.type === "open").length,
+      0, "Discovering already-open tabs must never issue CDP commands or open new tabs");
+    assert.equal((await fetch(base + "/json/candidates?site=unknown", { headers: auth })).status, 400);
     assert.equal((await fetch(base + "/json/new?https%3A%2F%2Fevil.example", { method: "PUT", headers: auth })).status, 400);
     const created = await (await fetch(base + "/json/new?https%3A%2F%2Fx.com%2Fhome", { method: "PUT", headers: auth })).json();
     assert.equal(created.url, "https://x.com/home");
     assert.equal(actions.filter((a) => a.type === "open").length, 1);
+    const tiktok = await (await fetch(base + "/json/new?https%3A%2F%2Fwww.tiktok.com%2F", { method: "PUT", headers: auth })).json();
+    assert.equal(tiktok.url, "https://www.tiktok.com/");
 
     pageSocket = new WebSocket(pages[0].webSocketDebuggerUrl);
     await open(pageSocket);
@@ -77,6 +91,10 @@ test("paired companion reuses an existing browser, creates its own allowed tabs 
     assert.equal(other.length, 1);
     const malicious = new WebSocket(pages[0].webSocketDebuggerUrl, { origin: "https://evil.example" });
     await assert.rejects(open(malicious));
+    const invalidated = new Promise((resolve) => pageSocket.once("close", resolve));
+    session.send(JSON.stringify({ type: "invalidated", tabId: 51 }));
+    const closeCode = await invalidated;
+    assert.equal(closeCode, 1008, "Tab navigation to an unapproved site closes its CDP clients");
   } finally {
     pageSocket?.close();
     session.close();
@@ -109,4 +127,42 @@ test("bridge refuses a missing browser and refuses to choose between two browser
   try {
     assert.equal(fs.readFileSync(nextBridge.keyPath, "utf8"), key, "pairing survives server restart");
   } finally { await nextBridge.stop(); }
+});
+
+test("paired browser can reconnect after its old live socket stops sending heartbeats", async () => {
+  const bridge = makeServer({ port: 0, directory: dataFolder(), staleBrowserMs: 500 });
+  const port = await bridge.start();
+  const key = fs.readFileSync(bridge.keyPath, "utf8");
+  const uri = `ws://127.0.0.1:${port}/extension?key=${key}&browserId=${browserId}`;
+  const options = { origin };
+  const headers = { Authorization: `Bearer ${key}` };
+  const base = `http://127.0.0.1:${port}`;
+  let original;
+  let replacement;
+  try {
+    original = new WebSocket(uri, options);
+    await open(original);
+    const freshDuplicate = new WebSocket(uri, options);
+    await assert.rejects(open(freshDuplicate), undefined,
+      "Duplicate live browser sessions must remain rejected");
+    await new Promise((resolve) => setTimeout(resolve, 650));
+    assert.equal((await fetch(base + "/json/version", { headers })).status, 503,
+      "An unresponsive old socket must not remain usable for browser operations");
+    replacement = new WebSocket(uri, options);
+    replacement.on("message", (raw) => {
+      const message = JSON.parse(raw.toString());
+      if (message.type === "list") replacement.send(JSON.stringify({
+        id: message.id, result: [{ id: 61, url: "https://www.reddit.com/", title: "Existing tab" }],
+      }));
+    });
+    await open(replacement);
+    const pages = await (await fetch(base + "/json/list", { headers })).json();
+    assert.deepEqual(pages.map(({ url }) => url), ["https://www.reddit.com/"]);
+    assert.equal(original.readyState !== WebSocket.OPEN, true,
+      "Stale connection was revoked when the same browser reconnected");
+  } finally {
+    original?.terminate();
+    replacement?.terminate();
+    await bridge.stop();
+  }
 });

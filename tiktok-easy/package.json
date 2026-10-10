@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check patch-upstream.mjs && node --check scripts/package-release.mjs && node --check scripts/build-v0.1.2.mjs",
+    "check": "node --check patch-upstream.mjs && node --check scripts/package-release.mjs && node --check scripts/build-v0.1.2.mjs && node --check scripts/patch-existing-browser.mjs && node --check scripts/build-v0.1.3.mjs && node --check scripts/patch-auto-discovery.mjs && node --check scripts/build-v0.1.4.mjs",
     "test": "node --test test/*.test.mjs"
   }
 }

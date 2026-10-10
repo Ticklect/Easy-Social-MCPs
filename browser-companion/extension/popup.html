@@ -17,13 +17,14 @@
 <body>
   <h1>Easy Social Browser Companion</h1>
   <p id="status" role="status">Checking connection…</p>
-  <p class="hint">Enter the pairing code printed by <code>npm start</code> in browser-companion. This connects your current browser profile and saved logins.</p>
+  <p class="hint">Pair this browser once using the code from the local bridge. Your existing signed-in social tabs are available automatically. If the bridge restarts, this extension reconnects using the saved pairing.</p>
   <form id="pair">
     <label for="code">Pairing code</label>
     <input id="code" type="password" minlength="64" maxlength="64" pattern="[0-9a-f]{64}" autocomplete="off" required>
     <button type="submit">Connect this browser</button>
   </form>
   <button id="disconnect" type="button">Disconnect</button>
+  <button id="reconnect" type="button">Retry connection</button>
   <script src="popup.js"></script>
 </body>
 </html>

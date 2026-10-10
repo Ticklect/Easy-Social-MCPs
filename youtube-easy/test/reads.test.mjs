@@ -56,15 +56,25 @@ function fixture() {
   return { root, profileDir, studio, client, browser, handlers };
 }
 
-test("login opens Studio and status returns only verified channel information", async () => {
+test("login reuses the already authenticated channel without opening another login page", async () => {
   const { handlers, browser } = fixture();
   const login = await handlers.youtube_login({});
   const status = await handlers.youtube_status({});
-  assert.match(login.message, /dedicated YouTube Easy browser/);
+  assert.match(login.message, /No login needed/);
+  assert.equal(login.loggedIn, true);
   assert.equal(status.loggedIn, true);
   assert.equal(status.channelId, `UC${"A".repeat(22)}`);
-  assert.equal(browser.navigated.at(-1), "https://studio.youtube.com/");
+  assert.deepEqual(browser.navigated, []);
   assert.equal(JSON.stringify(status).includes("cookie"), false);
+});
+
+test("login opens Studio only when the current browser has no authenticated channel", async () => {
+  const { handlers, studio, browser } = fixture();
+  studio.getStatus = async () => ({ loggedIn: false });
+  const login = await handlers.youtube_login({});
+  assert.equal(login.loggedIn, false);
+  assert.deepEqual(browser.navigated, ["https://studio.youtube.com/"]);
+  assert.match(login.message, /No signed-in YouTube channel/);
 });
 
 test("Studio video, processing, and comment reads are bounded and marked untrusted", async () => {

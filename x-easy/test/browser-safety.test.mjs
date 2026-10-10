@@ -8,6 +8,34 @@ import { fileURLToPath } from "node:url";
 const root = fileURLToPath(new URL("..", import.meta.url));
 const runtime = fs.readFileSync(path.join(root, "src", "index.js"), "utf8");
 
+const sessionTemplate = /const X_SESSION_SCRIPT = (`[\s\S]*?`);/.exec(runtime)?.[1];
+assert.ok(sessionTemplate, "X_SESSION_SCRIPT must remain a browser-visible session check");
+const sessionSource = vm.runInNewContext(sessionTemplate);
+
+function browserSession({ profileHref = null, switcher = false, switcherText = "" } = {}) {
+  return vm.runInNewContext(sessionSource, {
+    document: {
+      querySelector(selector) {
+        if (selector === '[data-testid="AppTabBar_Profile_Link"]' && profileHref !== null) {
+          return { getAttribute: () => profileHref };
+        }
+        if (selector === '[data-testid="SideNav_AccountSwitcher_Button"]' && switcher) return { textContent: switcherText };
+        return null;
+      },
+    },
+  });
+}
+
+test("X identifies the signed-in browser from visible account UI without reading cookies", () => {
+  assert.equal(browserSession({ profileHref: "/my_user" }).loggedIn, true);
+  assert.equal(browserSession({ profileHref: "/my_user" }).handle, "my_user");
+  assert.equal(browserSession({ switcher: true }).loggedIn, true);
+  assert.equal(browserSession({ switcher: true, switcherText: "My name @second_user" }).handle, "second_user");
+  assert.equal(browserSession().loggedIn, false);
+  assert.equal(browserSession({ profileHref: "/login" }).loggedIn, false);
+  assert.ok(!runtime.includes('Network.getAllCookies'), "Browser accounts must never be inspected by retrieving all cookies");
+});
+
 // Evaluate the actual browser expression shipped in the runtime, not a
 // reimplementation of the matching algorithm.
 const template = /const CONTROL_SCRIPT = (`[\s\S]*?`);/.exec(runtime)?.[1];

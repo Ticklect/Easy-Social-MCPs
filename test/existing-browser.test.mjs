@@ -58,8 +58,10 @@ test("Reddit and X open a tab in the connected browser, without launching a sepa
       });
       assert.equal(message.result?.isError, undefined, JSON.stringify(message));
     }
-    assert.equal(calls.filter(([method, url]) => method === "PUT" && url.startsWith("/json/new?")).length, 2);
-    assert.equal(calls.filter(([method, url]) => method === "GET" && url === "/json/version").length, 2);
+    // The status-first login checks now probe the session before opening login
+    // when our fixture's fake browser deliberately refuses page CDP connections.
+    assert.equal(calls.filter(([method, url]) => method === "PUT" && url.startsWith("/json/new?")).length, 4);
+    assert.equal(calls.filter(([method, url]) => method === "GET" && url === "/json/version").length, 4);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

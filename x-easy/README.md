@@ -6,7 +6,7 @@ X Easy is an MCPB plugin for using X through a dedicated local browser session w
 
 ## 30-second setup
 
-1. Import `x-easy-v0.1.2.mcpb` into an MCPB-compatible host such as Chat On Steroids.
+1. Import `x-easy-v0.1.4.mcpb` into an MCPB-compatible host such as Chat On Steroids.
 2. Ask the agent to run `x_login`.
 3. Sign into X normally in the dedicated browser window.
 4. Run `x_status` once.
@@ -40,9 +40,9 @@ There is no X developer app setup, no client ID, no client secret, no API token 
 
 ## Download
 
-- [`x-easy-v0.1.2.mcpb`](./x-easy-v0.1.2.mcpb) — current ready-to-import bundle
-- [`x-easy-v0.1.2.mcpb.sha256`](./x-easy-v0.1.2.mcpb.sha256) — SHA-256 checksum
-- [`x-easy-v0.1.2-source.zip`](./x-easy-v0.1.2-source.zip) — maintained source and offline tests
+- [`x-easy-v0.1.4.mcpb`](./x-easy-v0.1.4.mcpb) — current ready-to-import bundle
+- [`x-easy-v0.1.4.mcpb.sha256`](./x-easy-v0.1.4.mcpb.sha256) — SHA-256 checksum
+- [`x-easy-v0.1.4-source.zip`](./x-easy-v0.1.4-source.zip) — maintained source and offline tests
 - [`x-easy-v0.1.0.mcpb`](./x-easy-v0.1.0.mcpb) — previous release, kept unchanged
 - [`manifest.json`](./manifest.json) — MCPB manifest
 

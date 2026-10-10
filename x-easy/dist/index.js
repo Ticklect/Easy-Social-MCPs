@@ -12,9 +12,10 @@ import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
+import { discoverAlreadyOpenSocialBrowser, listAlreadyOpenDebuggers } from "./open-browser-discovery.js";
 import { coordinatedXWrite, noteHttpResponse, paceRead, withLease } from "./coordination.js";
 
-const VERSION = "0.1.2";
+const VERSION = "0.1.4";
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
 const MAX_STDIO_BUFFER = 2 * 1024 * 1024;
@@ -185,6 +186,20 @@ function existingBrowserPort() {
   return Number(value);
 }
 
+let discoveredExternalPort = null;
+async function findAlreadyOpenBrowser() {
+  const discovered = await discoverAlreadyOpenSocialBrowser({
+    ports: listAlreadyOpenDebuggers(),
+    request: (url) => fetchJson(url, {}, 700),
+    allowed: (url) => {
+      try { parseXHttpsUrl(url); return true; } catch { return false; }
+    },
+    validateWebSocket: validateLocalDebuggerWs,
+  });
+  discoveredExternalPort = discovered;
+  return discovered;
+}
+
 async function connectExistingBrowserPort() {
   const port = existingBrowserPort();
   if (!port) {
@@ -195,8 +210,10 @@ async function connectExistingBrowserPort() {
         validateLocalDebuggerWs(info.webSocketDebuggerUrl, 19411);
         return 19411;
       }
+      if (await findAlreadyOpenBrowser()) return discoveredExternalPort;
       throw new Error("Easy Social browser companion is configured but unavailable. Start its local server and connect the Helium/Chromium extension.");
     }
+    if (await findAlreadyOpenBrowser()) return discoveredExternalPort;
     if (process.env.EASY_SOCIAL_BROWSER_MODE === "existing") {
       throw new Error("Existing-browser mode requires the browser companion or EASY_SOCIAL_BROWSER_DEBUG_PORT.");
     }
@@ -211,7 +228,7 @@ async function connectExistingBrowserPort() {
 }
 
 function isExternalPort(port) {
-  return Boolean(existingBrowserPort()) || (port === 19411 &&
+  return Boolean(existingBrowserPort()) || port === discoveredExternalPort || (port === 19411 &&
     fs.existsSync(path.join(dataRoot(), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key")));
 }
 
@@ -484,47 +501,48 @@ async function closeDedicatedBrowser() {
   }
 }
 
-function cookieBelongsToX(cookie) {
-  const d = String(cookie?.domain || "").toLowerCase().replace(/^\./, "");
-  return d === "x.com" || d.endsWith(".x.com") || d === "twitter.com" || d.endsWith(".twitter.com");
-}
+// X's signed-in navigation is visible inside the page. Inspecting that UI
+// works with an attached everyday browser and avoids reading auth cookies.
+const X_SESSION_SCRIPT = `(() => {
+  const profile = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
+  const href = profile?.getAttribute('href') || '';
+  const match = /^\\/([A-Za-z0-9_]{1,15})\\/?$/.exec(href);
+  const reserved = new Set(['login', 'logout', 'home', 'explore', 'notifications', 'messages', 'search', 'settings', 'compose', 'i']);
+  const switcher = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+  const switcherMatch = /(?:^|\\s)@([A-Za-z0-9_]{1,15})(?![A-Za-z0-9_])/.exec(switcher?.textContent || '');
+  const handle = match && !reserved.has(match[1].toLowerCase()) ? match[1] : switcherMatch?.[1] || null;
+  return { loggedIn: Boolean(handle || switcher), handle };
+})()`;
 
 async function getSession(cdp, discoverHandle = false) {
-  let cookies = [];
-  try { cookies = (await cdp.send("Network.getAllCookies"))?.cookies || []; } catch {}
-  const xCookies = cookies.filter(cookieBelongsToX);
-  const auth = xCookies.some((c) => c.name === "auth_token");
-  const csrf = xCookies.some((c) => c.name === "ct0");
-  let handle = null;
-  if (auth && csrf && discoverHandle) {
-    try {
-      await navigate(cdp, "https://x.com/home");
-      handle = await evaluate(cdp, `(() => {
-        const a = document.querySelector('[data-testid="AppTabBar_Profile_Link"]');
-        const href = a?.getAttribute('href') || '';
-        const m = /^\\/([^/?#]+)$/.exec(href);
-        return m ? m[1] : null;
-      })()`);
-    } catch {}
+  let sawSignedInUi = false;
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const identity = await evaluate(cdp, X_SESSION_SCRIPT).catch(() => null);
+    if (identity?.loggedIn) sawSignedInUi = true;
+    if (identity?.loggedIn && (!discoverHandle || identity.handle)) {
+      return { loggedIn: true, handle: identity.handle || null };
+    }
+    if (attempt === 0) {
+      const href = await evaluate(cdp, "location.href").catch(() => "");
+      if (!String(href).startsWith("https://x.com/home") &&
+          !String(href).startsWith("https://twitter.com/home")) {
+        await navigate(cdp, "https://x.com/home");
+      }
+    }
+    if (attempt < 9) await sleep(350);
   }
-  return { loggedIn: auth && csrf, handle };
+  return { loggedIn: sawSignedInUi, handle: null };
 }
 
 async function requireLogin(cdp) {
   const session = await getSession(cdp, false);
-  if (!session.loggedIn) throw new Error("Not logged into X. Run x_login first and sign in in the dedicated browser window.");
+  if (!session.loggedIn) throw new Error("X does not show an active signed-in account. Connect an already signed-in browser using Easy Social Browser Companion, or use x_login.");
   const href = await evaluate(cdp, "location.href").catch(() => "");
   if (String(href).includes("/i/flow/login")) throw new Error("X is showing the login flow. Run x_login and finish signing in first.");
 }
 
 async function identifyWriteAccount(cdp) {
   await requireLogin(cdp);
-  const cookies = (await cdp.send("Network.getAllCookies"))?.cookies || [];
-  const twid = cookies.find((cookie) => cookieBelongsToX(cookie) && cookie.name === "twid")?.value;
-  let decoded = "";
-  try { decoded = decodeURIComponent(twid || ""); } catch {}
-  const userId = /^u=(\d+)$/.exec(decoded)?.[1];
-  if (userId) return `user-${userId}`;
   const session = await getSession(cdp, true);
   if (session.handle && /^[A-Za-z0-9_]{1,15}$/.test(session.handle)) return `handle-${session.handle.toLowerCase()}`;
   throw new Error("X Easy could not establish the current account for safe cross-process write limits.");
@@ -993,22 +1011,26 @@ const WRITE_WARNING = "This is a real external write to X. Only use it when the 
 const tools = [
   {
     name: "x_login",
-    description: "Open the dedicated X Easy browser window so the user can sign in directly on x.com. No X API key, developer app, or password field is required.",
+    description: "Reuse an already signed-in X session when accessible; otherwise open the login page. No X API key or password is collected.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { title: "Log in to X", readOnlyHint: true, openWorldHint: true },
     execute: async () => {
+      const session = await withXPage(async (cdp) => getSession(cdp, true)).catch(() => null);
+      if (session?.loggedIn) return session.handle
+        ? `Reusing the signed-in X session for @${session.handle}. No login needed.`
+        : "Reusing the signed-in X browser session. No login needed.";
       await openXUrl("https://x.com/i/flow/login");
-      return "Opened X in the dedicated X Easy browser profile. Sign in there normally, then call x_status.";
+      return "No signed-in X session was accessible. Opened X's login page. To reuse an existing Helium/Chromium sign-in, connect Easy Social Browser Companion once.";
     },
   },
   {
     name: "x_status",
-    description: "Check whether the dedicated X Easy browser profile is signed into X.",
+    description: "Check the active X account in the attached existing browser or the dedicated profile.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
     annotations: { title: "Check X login", readOnlyHint: true, openWorldHint: true },
     execute: async () => await withXPage(async (cdp) => {
       const session = await getSession(cdp, true);
-      if (!session.loggedIn) return "Not logged in. Run x_login, sign in in the dedicated browser window, then check again.";
+      if (!session.loggedIn) return "No signed-in X session is accessible. Pair Easy Social Browser Companion with your already signed-in browser or run x_login.";
       return session.handle ? `Logged into X as @${session.handle}.` : "Logged into X. The browser session is ready.";
     }),
   },

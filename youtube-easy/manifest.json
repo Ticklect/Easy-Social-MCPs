@@ -2,9 +2,9 @@
   "manifest_version": "0.2",
   "name": "youtube-easy",
   "display_name": "YouTube Easy",
-  "version": "0.1.2",
-  "description": "Upload and manage YouTube through a dedicated browser login. No API keys, OAuth client, or copied cookies.",
-  "long_description": "YouTube Easy uses a dedicated local Helium, Chrome, Edge, or Chromium profile and normal Google/YouTube sign-in. It drives YouTube Studio through loopback-only CDP, verifies important fields before final writes, coordinates duplicate protection and rate-limit cooldowns across separate processes, and returns UNCERTAIN instead of risking repeated ambiguous writes.",
+  "version": "0.1.4",
+  "description": "Manage YouTube by reusing a signed-in Chromium browser or a dedicated profile. No API keys or copied cookies.",
+  "long_description": "YouTube Easy reuses signed-in Helium/Chrome/Edge/Chromium sessions with the paired Easy Social Browser Companion or an existing loopback debugger, falling back to a dedicated browser profile. It verifies important fields before final Studio writes, coordinates duplicate protection and rate-limit cooldowns across separate processes, and returns UNCERTAIN instead of risking repeated ambiguous writes.",
   "author": {
     "name": "YouTube Easy contributors"
   },
@@ -21,7 +21,7 @@
   "tools": [
     {
       "name": "youtube_login",
-      "description": "Open the dedicated YouTube login browser"
+      "description": "Reuse signed-in YouTube channel or open login when needed"
     },
     {
       "name": "youtube_status",
