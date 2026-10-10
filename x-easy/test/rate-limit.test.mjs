@@ -102,6 +102,9 @@ test("minimum write gap is measured just before click, not tool invocation", asy
   const root = rootFor(t);
   const base = { root, account: "user-300", minGapMs: 110, jitterMs: 0, maxWaitMs: 500 };
   const at = [];
+  const accountStateFile = path.join(root, "coordination", "accounts",
+    crypto.createHash("sha256").update(base.account).digest("hex") + ".json");
+  let earliestNextAttempt = 0;
   for (let i = 0; i < 3; i++) {
     await coordinatedXWrite({ ...base, fingerprint: String(i), operation: async (mark) => {
       await new Promise((resolve) => setTimeout(resolve, i === 1 ? 20 : 0));
@@ -109,6 +112,9 @@ test("minimum write gap is measured just before click, not tool invocation", asy
       at.push(Date.now());
       return "ok";
     } });
+    assert.ok(at[i] >= earliestNextAttempt,
+      `Write ${i} occurred before the previously persisted deadline: ${at[i]} < ${earliestNextAttempt}`);
+    earliestNextAttempt = JSON.parse(fs.readFileSync(accountStateFile, "utf8")).nextWriteAt;
   }
   assert.ok(at[1] - at[0] >= 100, String(at));
   assert.ok(at[2] - at[1] >= 100, String(at));
