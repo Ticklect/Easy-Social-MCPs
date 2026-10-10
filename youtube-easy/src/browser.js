@@ -4,6 +4,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { parseGoogleYoutubeUrl, validateDebuggerWs } from "./validation.js";
 import { noteYouTubeResponse } from "./coordination.js";
+import { discoverAlreadyOpenSocialBrowser, listAlreadyOpenDebuggers } from "./open-browser-discovery.js";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -223,6 +224,7 @@ export class YouTubeBrowser {
     fetchFn = fetch,
     WebSocketClass = globalThis.WebSocket,
     candidateProvider,
+    debugPortProvider,
     sleepFn = sleep,
   } = {}) {
     this.platform = platform;
@@ -237,10 +239,12 @@ export class YouTubeBrowser {
     this.portFile = path.join(this.profileDir, "DevToolsActivePort");
     this.externalTabFile = path.join(this.stateDir, "external-browser-tab.json");
     this.candidateProvider = candidateProvider || (() => browserCandidates(platform, env));
+    this.debugPortProvider = debugPortProvider || (() => listAlreadyOpenDebuggers({ platform, env }));
     this.existingDebugPort = env.EASY_SOCIAL_BROWSER_DEBUG_PORT || null;
     this.browserMode = env.EASY_SOCIAL_BROWSER_MODE || "auto";
     this.bridgeKeyFile = path.join(defaultDataRoot(platform, env), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key");
     this.usingExternalBrowser = false;
+    this.discoveredExternalPort = null;
     ensurePrivateDir(this.fs, this.stateDir);
     ensurePrivateDir(this.fs, this.profileDir);
   }
@@ -268,6 +272,19 @@ export class YouTubeBrowser {
     }
   }
 
+  async findAlreadyOpenBrowser() {
+    const port = await discoverAlreadyOpenSocialBrowser({
+      ports: this.debugPortProvider(),
+      request: (url) => fetchJson(this.fetch, url, {}, 700),
+      allowed: (url) => {
+        try { parseGoogleYoutubeUrl(url); return true; } catch { return false; }
+      },
+      validateWebSocket: validateDebuggerWs,
+    });
+    this.discoveredExternalPort = port;
+    return port;
+  }
+
   async start() {
     if (this.existingDebugPort !== null) {
       const value = this.existingDebugPort;
@@ -288,11 +305,21 @@ export class YouTubeBrowser {
       const info = await fetchJson(this.fetch, "http://127.0.0.1:19411/json/version",
         { headers: { Authorization: `Bearer ${key}` } }, 700);
       if (info?.Browser !== "EasySocialCompanion/v1") {
+        const discovered = await this.findAlreadyOpenBrowser();
+        if (discovered) {
+          this.usingExternalBrowser = true;
+          return discovered;
+        }
         throw new Error("Easy Social browser companion is configured but unavailable. Start the server and connect the Helium/Chromium extension.");
       }
       validateDebuggerWs(info.webSocketDebuggerUrl, 19411);
       this.usingExternalBrowser = true;
       return 19411;
+    }
+    const discovered = await this.findAlreadyOpenBrowser();
+    if (discovered) {
+      this.usingExternalBrowser = true;
+      return discovered;
     }
     if (this.browserMode === "existing") {
       throw new Error("Existing-browser mode requires the browser companion or EASY_SOCIAL_BROWSER_DEBUG_PORT.");

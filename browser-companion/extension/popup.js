@@ -2,7 +2,8 @@ const status = document.getElementById("status");
 async function refresh() {
   try {
     const result = await chrome.runtime.sendMessage({ type: "status" });
-    status.textContent = result.connected ? "Connected to Easy Social" : result.error || "Not connected";
+    status.textContent = result?.connected ? "Connected to Easy Social" :
+      result?.connecting ? "Connecting to Easy Social…" : result?.error || "Not connected";
   } catch { status.textContent = "Extension background is unavailable."; }
 }
 document.getElementById("pair").addEventListener("submit", async (event) => {
@@ -18,4 +19,13 @@ document.getElementById("disconnect").addEventListener("click", async () => {
   await chrome.runtime.sendMessage({ type: "disconnect" });
   await refresh();
 });
+document.getElementById("reconnect").addEventListener("click", async () => {
+  status.textContent = "Retrying the saved browser connection…";
+  try {
+    const result = await chrome.runtime.sendMessage({ type: "reconnect" });
+    if (result?.error) status.textContent = result.error;
+    else await refresh();
+  } catch { status.textContent = "Could not reconnect. Check the local bridge."; }
+});
 void refresh();
+setInterval(() => void refresh(), 2000);

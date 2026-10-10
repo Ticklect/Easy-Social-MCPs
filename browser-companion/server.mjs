@@ -8,9 +8,16 @@ import { WebSocket, WebSocketServer } from "ws";
 
 export const PORT = 19411;
 const HOST = "127.0.0.1";
-const ALLOWED = ["reddit.com", "x.com", "twitter.com", "youtube.com", "accounts.google.com"];
+const ALLOWED = ["reddit.com", "x.com", "twitter.com", "youtube.com", "accounts.google.com", "tiktok.com"];
+const SITE_HOSTS = {
+  reddit: ["reddit.com"],
+  x: ["x.com", "twitter.com"],
+  youtube: ["youtube.com", "accounts.google.com"],
+  tiktok: ["tiktok.com"],
+};
 const MAX_BYTES = 2 * 1024 * 1024;
 const TIMEOUT = 10_000;
+const STALE_BROWSER_MS = 45_000;
 
 export function stateDir(platform = process.platform, env = process.env, home = os.homedir()) {
   const base = platform === "win32" ? env.LOCALAPPDATA || env.APPDATA || home :
@@ -27,11 +34,21 @@ function approved(href) {
   } catch { return false; }
 }
 
+function siteForUrl(href) {
+  if (!approved(href)) return null;
+  const host = new URL(href).hostname.toLowerCase().replace(/\.$/, "");
+  for (const [site, domains] of Object.entries(SITE_HOSTS)) {
+    if (domains.some((domain) => host === domain || host.endsWith("." + domain))) return site;
+  }
+  return null;
+}
+
 function hostOrigin(req, port) {
   return req.headers.host === `127.0.0.1:${port}`;
 }
 
-export function makeServer({ port = PORT, directory = stateDir() } = {}) {
+export function makeServer({ port = PORT, directory = stateDir(),
+  staleBrowserMs = STALE_BROWSER_MS } = {}) {
   const keyPath = path.join(directory, "pairing-key");
   // Stable pairing survives process restarts; users need to pair each browser
   // once. Only the local account can read this key on Unix platforms.
@@ -48,13 +65,29 @@ export function makeServer({ port = PORT, directory = stateDir() } = {}) {
   const pending = new Map();
   let counter = 0;
 
+  function closeTabClients(key, reason = "Tab is no longer available.") {
+    const subscribers = clients.get(key);
+    if (!subscribers) return;
+    clients.delete(key);
+    for (const client of subscribers) if (client.readyState === WebSocket.OPEN) client.close(1008, reason);
+  }
+  function clearBrowser(browser) {
+    for (const [key, work] of pending) if (work.browser === browser) {
+      clearTimeout(work.timer); work.reject(new Error("Browser disconnected.")); pending.delete(key);
+    }
+    for (const key of clients.keys()) if (key.startsWith(browser.id + ":")) {
+      closeTabClients(key, "Browser disconnected.");
+    }
+  }
+
   function portNumber() { return server.address().port; }
   function returnJson(res, status, payload) {
     res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" });
     res.end(JSON.stringify(payload));
   }
   function selection() {
-    const connected = [...browsers.values()].filter((b) => b.socket.readyState === WebSocket.OPEN);
+    const connected = [...browsers.values()].filter((b) =>
+      b.socket.readyState === WebSocket.OPEN && Date.now() - b.lastSeen <= staleBrowserMs);
     if (!connected.length) throw new Error("No connected browser companion. Pair the extension in Helium, Chrome, Edge, Brave, Opera or Vivaldi.");
     // Never silently choose between different signed-in browsers.
     if (connected.length > 1) throw new Error("More than one browser is connected. Disconnect the extra companion before posting.");
@@ -65,14 +98,18 @@ export function makeServer({ port = PORT, directory = stateDir() } = {}) {
     const id = ++counter;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => { pending.delete(id); reject(new Error("Browser companion timed out.")); }, TIMEOUT);
-      pending.set(id, { browser, resolve, reject, timer });
+      pending.set(id, { browser, tabId: extra?.tabId, resolve, reject, timer });
       browser.socket.send(JSON.stringify({ id, type, ...extra }));
     });
   }
   function pageInfo(browser, tab) {
-    if (!Number.isInteger(tab?.id) || tab.id < 0 || !approved(tab.url)) return null;
+    const site = siteForUrl(tab?.url);
+    if (!Number.isInteger(tab?.id) || tab.id < 0 || !site) return null;
     return { id: `${browser.id}:${tab.id}`, type: "page", title: String(tab.title || ""),
-      url: tab.url,
+      url: tab.url, site, active: tab.active === true,
+      // These are pre-existing tabs, including tabs on which the user is signed in.
+      // Login status is intentionally unknown until a site-specific read checks it.
+      existing: true, loginStatus: "unchecked",
       webSocketDebuggerUrl: `ws://${HOST}:${portNumber()}/devtools/page/${browser.id}/${tab.id}?key=${secret}` };
   }
   server.on("request", async (req, res) => {
@@ -89,9 +126,19 @@ export function makeServer({ port = PORT, directory = stateDir() } = {}) {
             browser: browser.label,
             webSocketDebuggerUrl: `ws://${HOST}:${portNumber()}/devtools/browser/local?key=${secret}` });
         }
-        if (req.method === "GET" && requestUrl.pathname === "/json/list") {
+        if (req.method === "GET" && (requestUrl.pathname === "/json/list" ||
+            requestUrl.pathname === "/json/candidates")) {
+          const filter = requestUrl.searchParams.get("site");
+          if (filter !== null && !Object.hasOwn(SITE_HOSTS, filter)) {
+            return returnJson(res, 400, { error: "Unknown social website filter." });
+          }
           const tabs = await request(browser, "list", {});
-          return returnJson(res, 200, (Array.isArray(tabs) ? tabs : []).map((tab) => pageInfo(browser, tab)).filter(Boolean));
+          const pages = (Array.isArray(tabs) ? tabs : [])
+            .map((tab) => pageInfo(browser, tab)).filter((tab) => tab && (!filter || tab.site === filter));
+          // An active tab is usually the user's current session. Never infer
+          // authenticated status from its title, URL or position in this list.
+          pages.sort((a, b) => Number(b.active) - Number(a.active));
+          return returnJson(res, 200, pages);
         }
         if (req.method === "PUT" && requestUrl.pathname === "/json/new") {
           const url = decodeURIComponent(requestUrl.search.slice(1));
@@ -118,19 +165,45 @@ export function makeServer({ port = PORT, directory = stateDir() } = {}) {
         (isExtension ? !/^chrome-extension:\/\/[a-p]{32}$/.test(req.headers.origin || "") :
           Boolean(req.headers.origin) || (!matched && !isBrowser))) { socket.destroy(); return; }
     const clientId = url.searchParams.get("browserId");
-    if (isExtension && (!/^[a-f0-9]{32}$/.test(clientId || "") || browsers.has(clientId))) {
+    if (isExtension && !/^[a-f0-9]{32}$/.test(clientId || "")) {
       socket.destroy(); return;
+    }
+    if (isExtension && browsers.has(clientId)) {
+      const previous = browsers.get(clientId);
+      // The worker may reconnect before the old socket's close event fires.
+      // Never allow two fresh sessions to claim one browser identity.
+      // An MV3 worker can die without closing its original socket. The saved
+      // browser identity is allowed to reconnect after heartbeats go stale.
+      if (previous.socket.readyState === WebSocket.OPEN &&
+          Date.now() - previous.lastSeen <= staleBrowserMs) { socket.destroy(); return; }
+      browsers.delete(clientId);
+      clearBrowser(previous);
+      previous.socket.terminate();
     }
     const id = isExtension ? clientId : null;
     if (matched && (!browsers.has(matched[1]) || browsers.get(matched[1]) !== selectionOrNull())) { socket.destroy(); return; }
     sockets.handleUpgrade(req, socket, head, (ws) => {
       if (isExtension) {
-        const browser = { id, label: "Chromium browser", socket: ws };
+        const browser = { id, label: "Chromium browser", socket: ws, lastSeen: Date.now() };
         browsers.set(id, browser);
         ws.on("message", (raw) => {
+          if (browsers.get(id) !== browser) return;
+          browser.lastSeen = Date.now();
           let item;
           try { item = JSON.parse(raw.toString()); } catch { return; }
           if (item.type === "hello") { browser.label = String(item.browser || "Chromium browser").slice(0, 80); return; }
+          if (item.type === "invalidated") {
+            if (Number.isSafeInteger(item.tabId) && item.tabId >= 0) {
+              closeTabClients(`${id}:${item.tabId}`, "Tab left the approved social websites.");
+              for (const [pendingId, work] of pending) {
+                if (work.browser !== browser || work.tabId !== item.tabId) continue;
+                clearTimeout(work.timer);
+                work.reject(new Error("Tab left the approved social websites."));
+                pending.delete(pendingId);
+              }
+            }
+            return;
+          }
           if (item.type === "event") {
             const key = `${id}:${item.tabId}`;
             if (!/^[A-Za-z]+\.[A-Za-z]+$/.test(item.method || "")) return;
@@ -145,14 +218,9 @@ export function makeServer({ port = PORT, directory = stateDir() } = {}) {
           else work.resolve(item.result);
         });
         ws.on("close", () => {
+          if (browsers.get(id) !== browser) return;
           browsers.delete(id);
-          for (const [key, work] of pending) if (work.browser === browser) {
-            clearTimeout(work.timer); work.reject(new Error("Browser disconnected.")); pending.delete(key);
-          }
-          for (const [key, subscribers] of clients) if (key.startsWith(id + ":")) {
-            for (const client of subscribers) client.close(1011, "Browser disconnected");
-            clients.delete(key);
-          }
+          clearBrowser(browser);
         });
         return;
       }

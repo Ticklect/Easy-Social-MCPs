@@ -2,9 +2,9 @@
   "manifest_version": "0.2",
   "name": "tiktok-easy",
   "display_name": "TikTok Easy",
-  "version": "0.1.2",
-  "description": "TikTok browser-session MCP with QR login and no TikTok API keys.",
-  "long_description": "Import the bundle, run tiktok_login, scan TikTok's QR code, and use TikTok through a persistent local browser profile. Includes posting, native scheduling, profile management, likes, follows, deletion, analytics and local performance history.",
+  "version": "0.1.4",
+  "description": "TikTok MCP with automatic signed-in Chromium browser detection, existing CDP reuse or QR login.",
+  "long_description": "Run tiktok_login to automatically reuse an already-open signed-in Chromium browser exposing an accessible localhost CDP debugger, including Helium when started with debugging. Falls back to the dedicated persistent profile for QR login. No copied browser cookies or credentials. Includes posting, scheduling, profile management and analytics.",
   "author": {
     "name": "TikTok Easy contributors"
   },

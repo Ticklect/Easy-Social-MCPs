@@ -66,9 +66,9 @@ test("build creates a self-contained MCPB, source ZIP, and matching SHA-256", as
   const run = spawnSync(process.execPath, [path.join(root, "scripts", "build.mjs"), "--out", work], { cwd: root, encoding: "utf8" });
   assert.equal(run.status, 0, run.stderr || run.stdout);
 
-  const mcpb = path.join(work, "youtube-easy-v0.1.2.mcpb");
-  const source = path.join(work, "youtube-easy-v0.1.2-source.zip");
-  const checksum = path.join(work, "youtube-easy-v0.1.2.mcpb.sha256");
+  const mcpb = path.join(work, "youtube-easy-v0.1.4.mcpb");
+  const source = path.join(work, "youtube-easy-v0.1.4-source.zip");
+  const checksum = path.join(work, "youtube-easy-v0.1.4.mcpb.sha256");
   for (const file of [mcpb, source, checksum]) assert.equal(fs.statSync(file).isFile(), true, file);
 
   const entries = zipEntries(mcpb);
@@ -78,7 +78,7 @@ test("build creates a self-contained MCPB, source ZIP, and matching SHA-256", as
   for (const name of fs.readdirSync(path.join(root, "src"))) {
     assert.deepEqual(entries.get(`dist/${name}`), canonical(fs.readFileSync(path.join(root, "src", name))), `packaged runtime ${name} must match checked-in source`);
   }
-  assert.equal(JSON.parse(entries.get("manifest.json")).version, "0.1.2");
+  assert.equal(JSON.parse(entries.get("manifest.json")).version, "0.1.4");
   assert.equal(JSON.parse(entries.get("manifest.json")).tools.length, 17);
   const sourceEntries = zipEntries(source);
   assert.equal(sourceEntries.has(".github/workflows/build-youtube-easy.yml"), true);
@@ -86,7 +86,7 @@ test("build creates a self-contained MCPB, source ZIP, and matching SHA-256", as
   assert.equal(sourceEntries.has("docs/youtube-easy-plan.md"), true);
 
   const actualHash = crypto.createHash("sha256").update(fs.readFileSync(mcpb)).digest("hex");
-  assert.match(fs.readFileSync(checksum, "utf8"), new RegExp(`^${actualHash}  youtube-easy-v0\\.1\\.2\\.mcpb\\s*$`));
+  assert.match(fs.readFileSync(checksum, "utf8"), new RegExp(`^${actualHash}  youtube-easy-v0\\.1\\.4\\.mcpb\\s*$`));
 
   const unpack = path.join(work, "unpack");
   for (const [name, bytes] of entries) {
@@ -95,7 +95,7 @@ test("build creates a self-contained MCPB, source ZIP, and matching SHA-256", as
     fs.writeFileSync(target, bytes);
   }
   const responses = await smoke(path.join(unpack, "dist", "server.js"));
-  assert.equal(responses.find((item) => item.id === 1).result.serverInfo.version, "0.1.2");
+  assert.equal(responses.find((item) => item.id === 1).result.serverInfo.version, "0.1.4");
   assert.equal(responses.find((item) => item.id === 2).result.tools.length, 17);
 
   // Reproduce realpath/argv mismatches such as macOS /var -> /private/var.
@@ -103,7 +103,7 @@ test("build creates a self-contained MCPB, source ZIP, and matching SHA-256", as
   try {
     fs.symlinkSync(unpack, alias, process.platform === "win32" ? "junction" : "dir");
     const aliased = await smoke(path.join(alias, "dist", "server.js"));
-    assert.equal(aliased.find((item) => item.id === 1).result.serverInfo.version, "0.1.2");
+    assert.equal(aliased.find((item) => item.id === 1).result.serverInfo.version, "0.1.4");
   } catch (error) {
     if (!["EPERM", "EACCES", "ENOTSUP"].includes(error?.code)) throw error;
   }

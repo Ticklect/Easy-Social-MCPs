@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repositoryRoot = path.dirname(root);
-const version = "0.1.2";
+const version = "0.1.4";
 const artifactBase = `youtube-easy-v${version}`;
 
 // Git autocrlf differs by OS. Package the same UTF-8/LF bytes everywhere.

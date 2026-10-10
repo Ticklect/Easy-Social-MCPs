@@ -2,7 +2,7 @@
 
 **Read, search and post on Reddit from an MCP host without making a Reddit developer app, copying API keys, or putting your Reddit password into plugin settings.**
 
-Reddit Easy uses a dedicated local Chromium browser profile. Sign in to Reddit normally once and the MCP reuses that local session.
+Reddit Easy first searches for an accessible already-open signed-in browser and reuses its session, using its own dedicated Chromium profile when browser access has not been granted.
 
 ## Easy Social MCPs
 
@@ -10,14 +10,14 @@ This repository includes all four ready-to-use MCPs:
 
 | MCP | Start login | Download this MCP file |
 | --- | --- | --- |
-| [Reddit Easy](./README.md) | `reddit_login` | [`reddit-easy-v0.3.3.mcpb`](./reddit-easy-v0.3.3.mcpb) |
-| [X Easy](./x-easy/README.md) | `x_login` | [`x-easy-v0.1.2.mcpb`](./x-easy/x-easy-v0.1.2.mcpb) |
-| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.2.mcpb`](./tiktok-easy/tiktok-easy-v0.1.2.mcpb) |
-| [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.2.mcpb`](./youtube-easy/youtube-easy-v0.1.2.mcpb) |
+| [Reddit Easy](./README.md) | `reddit_login` | [`reddit-easy-v0.3.5.mcpb`](./reddit-easy-v0.3.5.mcpb) |
+| [X Easy](./x-easy/README.md) | `x_login` | [`x-easy-v0.1.4.mcpb`](./x-easy/x-easy-v0.1.4.mcpb) |
+| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.4.mcpb`](./tiktok-easy/tiktok-easy-v0.1.4.mcpb) |
+| [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.4.mcpb`](./youtube-easy/youtube-easy-v0.1.4.mcpb) |
 
 ### Want all four?
 
-**[Easy Social MCPs All-in-One v0.1.3](./easy-social-mcps/easy-social-mcps-v0.1.3.zip)** contains the installer, all four MCPs, and advanced existing-debugger support for Reddit, X and YouTube. The previous [v0.1.2 build](./easy-social-mcps/easy-social-mcps-v0.1.2.zip) remains available.
+**[Easy Social MCPs All-in-One v0.1.5](./easy-social-mcps/easy-social-mcps-v0.1.5.zip)** contains the installer, all four MCPs, and the existing-browser companion for reusing signed-in sessions. The previous [v0.1.4 build](./easy-social-mcps/easy-social-mcps-v0.1.4.zip) remains available.
 
 ### Easiest setup: give this prompt to your coding agent
 
@@ -42,9 +42,9 @@ You need **two downloads**: the [Easy MCP Installer ZIP](./easy-mcp-installer/ea
 Extract the installer ZIP, place the downloaded `.mcpb` files beside `install-easy-mcp.mjs`, then run one command:
 
 ```text
-node install-easy-mcp.mjs --host codex youtube-easy-v0.1.2.mcpb
-node install-easy-mcp.mjs --host claude youtube-easy-v0.1.2.mcpb
-node install-easy-mcp.mjs --host both reddit-easy-v0.3.3.mcpb x-easy-v0.1.2.mcpb tiktok-easy-v0.1.2.mcpb youtube-easy-v0.1.2.mcpb
+node install-easy-mcp.mjs --host codex youtube-easy-v0.1.4.mcpb
+node install-easy-mcp.mjs --host claude youtube-easy-v0.1.4.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.5.mcpb x-easy-v0.1.4.mcpb tiktok-easy-v0.1.4.mcpb youtube-easy-v0.1.4.mcpb
 ```
 
 Restart Codex or Claude Code afterward. The first command installs only into Codex, the second only into Claude Code, and `--host both` installs into both.
@@ -55,7 +55,7 @@ Restart Codex or Claude Code afterward. The first command installs only into Cod
 
 It includes fail-closed video/Short upload, metadata editing, thumbnails, scheduling, comments, channel/video/search reads, and transcript extraction when the public page exposes it. Cross-process leases and persisted reconciliation return `UNCERTAIN` instead of risking duplicate writes after an ambiguous crash.
 
-[YouTube Easy v0.1.2 bundle](./youtube-easy/youtube-easy-v0.1.2.mcpb)
+[YouTube Easy v0.1.4 bundle](./youtube-easy/youtube-easy-v0.1.4.mcpb)
 
 > v0.1.1 adds browser-session request pacing and cooldown handling. Offline simulations do not establish successful live uploads or guarantee account safety. YouTube may change Studio at any time. Read the [YouTube Easy security and limitations](./youtube-easy/README.md) before use.
 
@@ -67,7 +67,7 @@ I also added **[TikTok Easy](./tiktok-easy/README.md)** for TikTok. It packages 
 
 It supports posting and native scheduling, likes, follows, deletion, profile/avatar changes, analytics, saved performance history, and hook analysis.
 
-[TikTok Easy v0.1.2 bundle](./tiktok-easy/tiktok-easy-v0.1.2.mcpb)
+[TikTok Easy v0.1.4 bundle](./tiktok-easy/tiktok-easy-v0.1.4.mcpb)
 
 > TikTok Easy is an unofficial browser-session integration and carries platform/account risk. Read its [security notes and attribution](./tiktok-easy/README.md) before using it.
 
@@ -75,13 +75,13 @@ It supports posting and native scheduling, likes, follows, deletion, profile/ava
 
 I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same basic idea: import the MCPB, sign in once in a dedicated browser, then read your timeline, search, mentions, notifications and bookmarks, or explicitly post, reply, like, repost and bookmark without setting up X API credentials.
 
-[X Easy v0.1.2 bundle](./x-easy/x-easy-v0.1.2.mcpb)
+[X Easy v0.1.4 bundle](./x-easy/x-easy-v0.1.4.mcpb)
 
 > X explicitly prohibits scripting its website as a form of automation, and enforcement can include suspension. Local pacing does not make this approach authorised or guarantee account safety. Review the [X Easy security warnings](./x-easy/README.md) and use X's official API for authorised automation.
 
 ## 30-second setup
 
-1. Download `reddit-easy.mcpb` or the versioned v0.3.3 bundle from this repository.
+1. Download `reddit-easy.mcpb` or the versioned v0.3.4 bundle from this repository.
 2. Import it into Chat On Steroids or another MCPB-compatible host.
 3. Ask the agent to run `reddit_login`.
 4. Sign in to Reddit in the dedicated browser window.
@@ -169,15 +169,19 @@ Helium support includes common Windows installs under `%LOCALAPPDATA%\imput\Heli
 
 ### Use your signed-in Helium / Chromium browser
 
-The optional [Easy Social Browser Companion](./browser-companion/README.md) connects Reddit, X and YouTube Easy to an existing Helium, Chrome, Edge, Brave, Chromium, Vivaldi or Opera window. Run `npm ci` and `npm start` in `browser-companion`, enable developer mode in your browser's extensions page and load `browser-companion/extension` as an unpacked extension. Paste the local server's pairing code into the extension popup. Once connected, the MCPs automatically use your normal signed-in browser and open only their own social tabs.
+The [Easy Social Browser Companion](./browser-companion/README.md) connects Reddit, X and YouTube Easy to an existing signed-in Helium, Chrome, Edge, Brave, Chromium, Vivaldi or Opera window. On Windows, run `browser-companion/start-windows.cmd` to start its local bridge; then load `browser-companion/extension` as an unpacked browser extension and enter the bridge's one-time pairing code. Once connected, the MCPs reuse your existing sign-ins and only open their own social tabs. No second social login is necessary.
 
-The paired browser is never closed or cleared. If two browsers are connected at once, the bridge refuses automated actions until you disconnect one; this avoids using the wrong account. Firefox and Safari require separate extension implementations and are not supported by the Chromium companion. TikTok Easy retains its separate Playwright profile. Actual cross-browser sign-in should be tested on each browser version.
+The paired browser is never closed or cleared. If two browsers are connected at once, the bridge refuses automated actions until you disconnect one; this avoids using the wrong account. Firefox and Safari require separate browser integrations. TikTok Easy can reuse an existing browser only when it already exposes a supported local CDP debugger; the companion's page-level debugger is not yet sufficient for its Playwright backend. Browser permission/pairing cannot be silently bypassed.
+
+### Automatic discovery of already-open browser sessions
+
+On Windows, the MCPs automatically check already-running Chromium/Helium browser debuggers for an open tab on their respective social site. When exactly one suitable accessible browser is found, they reuse the browser's logged-in profile in a separate working tab, then verify the site's signed-in account. Existing tabs are left alone. If more than one debugger matches, automatic selection stops to avoid using the wrong account. If the usual browser has no debugging access, pair the companion once as described above.
 
 ### Attach to an already running debugger (advanced)
 
-Reddit Easy, X Easy and YouTube Easy can connect to a Chromium browser **already listening on a local Chrome DevTools Protocol (CDP) port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to its port in the MCP environment. The MCP then uses the browser's current cookies and logged-in session, opening a tab in that browser if necessary. It does not launch, close or erase the external browser profile.
+Reddit Easy, X Easy, TikTok Easy and YouTube Easy can connect to a Chromium browser **already listening on a local Chrome DevTools Protocol (CDP) port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to its port in the MCP environment. The MCP reuses the browser's authenticated session and opens its own social tab when appropriate; it never exports or copies authentication cookies.
 
-Set `EASY_SOCIAL_BROWSER_MODE=existing` to fail with a clear error instead of opening a separate browser when the connection is unavailable. The default remains a dedicated browser when this option is not configured. TikTok Easy still uses a separate Playwright browser.
+Set `EASY_SOCIAL_BROWSER_MODE=existing` to fail with a clear error instead of launching a separate browser when the connection is unavailable. Otherwise, the default dedicated-browser fallback is retained.
 
 This direct-debugger option works only if the browser **already exposes CDP**. Ordinary Chrome windows do not. Chrome 136+ prevents remote debugging of its default user-data directory, and adding a debugging flag after Chrome has started does not change the running process. Use the companion extension above to reuse a normal signed-in browser. Do not copy the everyday profile or its cookies into the MCP.
 
@@ -206,7 +210,7 @@ See [SECURITY.md](./SECURITY.md).
 ## Downloads and source
 
 - [`reddit-easy.mcpb`](./reddit-easy.mcpb) — current ready-to-import bundle
-- [`reddit-easy-v0.3.3.mcpb`](./reddit-easy-v0.3.3.mcpb) — current versioned MCPB
+- [`reddit-easy-v0.3.5.mcpb`](./reddit-easy-v0.3.5.mcpb) — current versioned MCPB
 - [Reddit Easy v0.3.1 release](../../releases/tag/reddit-easy-v0.3.1) — previous release, preserved unchanged
 - [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256) — checksum for the current bundle
 - [`manifest.json`](./manifest.json) — MCPB manifest

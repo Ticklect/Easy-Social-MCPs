@@ -104,15 +104,20 @@ export function createReadHandlers({
   return {
     async youtube_login() {
       return await withBrowserPage(async (client, activeBrowser) => {
+        const status = await adapterFactory(client, activeBrowser).getStatus();
+        if (status?.loggedIn) return {
+          loggedIn: true, channelId: bounded(status.channelId, 100), channelName: bounded(status.channelName, 200),
+          message: "Reusing the selected signed-in YouTube channel. No login needed.",
+        };
         await navigate(client, activeBrowser, "https://studio.youtube.com/");
-        return { message: "Opened YouTube Studio in the dedicated YouTube Easy browser profile. Sign in to Google/YouTube there normally, choose the intended channel, then run youtube_status. Never type your Google password into the MCP." };
+        return { loggedIn: false, message: "No signed-in YouTube channel is accessible. Opened YouTube Studio. Connect Easy Social Browser Companion with your already signed-in browser to reuse its channel, or sign in here." };
       });
     },
 
     async youtube_status() {
       return await withStudio(async (studio) => {
         const status = await studio.getStatus();
-        if (!status?.loggedIn) return { loggedIn: false, message: "Not logged into a verified YouTube channel. Run youtube_login and finish signing in in the dedicated browser." };
+        if (!status?.loggedIn) return { loggedIn: false, message: "No verified YouTube channel is accessible. Pair Easy Social Browser Companion with your signed-in browser or run youtube_login." };
         return { loggedIn: true, channelId: bounded(status.channelId, 100), channelName: bounded(status.channelName, 200), studioUrl: "https://studio.youtube.com/" };
       });
     },

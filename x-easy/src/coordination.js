@@ -233,7 +233,11 @@ export async function coordinatedXWrite({
       }
       const wait = Math.max(0, Number(state.nextWriteAt || 0) - now);
       if (wait > maxWaitMs) throw new Error(`X write pacing is active. Retry in about ${Math.ceil(wait / 1000)} seconds.`);
-      if (wait) await sleep(wait);
+      // Windows timers (and event-loop scheduling) may resume a few ms before
+      // the requested deadline. The actual click gate must honor the
+      // persisted nextWriteAt, not merely the requested sleep duration.
+      const deadline = Number(state.nextWriteAt || 0);
+      while (Date.now() < deadline) await sleep(Math.max(1, deadline - Date.now()));
       assertCooldown(readJson(requestsFile(root)) || {});
       const at = Date.now();
       const jitter = jitterMs ? crypto.randomInt(jitterMs + 1) : 0;
