@@ -8,6 +8,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { buildRelease } from "./package-release.mjs";
+import { extractZip } from "../test/zip.mjs";
 
 const tiktokDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const version = "0.1.2";
@@ -25,7 +26,9 @@ try {
   const packageRoot = path.join(scratch, "package");
   fs.mkdirSync(sourceRoot, { recursive: true });
   fs.mkdirSync(path.join(packageRoot, "app"), { recursive: true });
-  run("tar", ["-xf", baseZip, "-C", sourceRoot], tiktokDir);
+  // GNU tar on Linux cannot reliably unpack ZIP files. Use the repository's
+  // guarded, dependency-free ZIP extractor on every platform instead.
+  extractZip(baseZip, sourceRoot);
   run(process.execPath, [path.join(tiktokDir, "patch-upstream.mjs"), "--rate-only"], sourceRoot);
   const npmCli = process.env.npm_execpath || path.join(path.dirname(process.execPath),
     "node_modules", "npm", "bin", "npm-cli.js");
