@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { createReadHandlers, UNTRUSTED_CONTENT_WARNING } from "../src/reads.js";
+import { noteYouTubeResponse } from "../src/coordination.js";
 
 class FakeStudio {
   async getStatus() { return { loggedIn: true, channelId: `UC${"A".repeat(22)}`, channelName: "My Channel", href: "https://studio.youtube.com/" }; }
@@ -50,7 +51,7 @@ function fixture() {
     browser,
     withPage: async (fn) => await fn(client, browser),
     adapterFactory: () => studio,
-    leaseOptions: { leaseMs: 300, waitMs: 5_000 },
+    leaseOptions: { leaseMs: 300, waitMs: 5_000, pacingMs: 0 },
   });
   return { root, profileDir, studio, client, browser, handlers };
 }
@@ -120,4 +121,12 @@ test("forget session closes the dedicated browser and erases only its profile", 
   assert.equal(fs.existsSync(profileDir), true);
   assert.equal(fs.readFileSync(path.join(root, "keep.txt"), "utf8"), "keep");
   assert.match(result.message, /Forgot the local YouTube Easy browser session/);
+});
+
+test("forgetting a local session remains available during a recorded YouTube cooldown", async () => {
+  const { handlers, root, profileDir } = fixture();
+  noteYouTubeResponse(root, { type: "Document", response: { status: 429, url: "https://studio.youtube.com/", headers: { "Retry-After": "30" } } });
+  assert.match((await handlers.youtube_forget_session()).message, /Forgot the local YouTube Easy browser session/);
+  assert.equal(fs.existsSync(path.join(profileDir, "session.bin")), false);
+  await assert.rejects(() => handlers.youtube_status(), /cooling down/i);
 });

@@ -135,7 +135,9 @@ export class StudioAdapter {
     if (!this.client.send) throw new Error("This Studio adapter cannot navigate without a browser or CDP Page client.");
     await this.client.send("Page.navigate", { url: safe });
     for (let i = 0; i < 80; i++) {
+      if (this.client.youtubeThrottle) throw this.client.youtubeThrottle;
       const state = await this.client.evaluate("({ready:document.readyState,href:location.href})").catch(() => null);
+      if (this.client.youtubeThrottle) throw this.client.youtubeThrottle;
       if (state && ["interactive", "complete"].includes(state.ready)) {
         parseGoogleYoutubeUrl(state.href);
         return state.href;
@@ -148,7 +150,9 @@ export class StudioAdapter {
   async waitFor(expression, label, timeoutMs = 20_000) {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
+      if (this.client.youtubeThrottle) throw this.client.youtubeThrottle;
       const result = await this.client.evaluate(expression).catch(() => null);
+      if (this.client.youtubeThrottle) throw this.client.youtubeThrottle;
       if (result) return result;
       await this.sleep(250);
     }

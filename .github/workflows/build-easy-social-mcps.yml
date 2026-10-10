@@ -22,6 +22,22 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Check Reddit runtime and cooldown coordination
+        run: |
+          npm run check
+          npm test
+      - name: Check X runtime and shared rate limits
+        run: |
+          npm --prefix x-easy run check
+          npm --prefix x-easy test
+      - name: Check TikTok rate limits
+        run: |
+          npm --prefix tiktok-easy run check
+          npm --prefix tiktok-easy test
+      - name: Check YouTube browser coordination
+        run: |
+          npm --prefix youtube-easy run check
+          npm --prefix youtube-easy test
       - run: npm --prefix easy-social-mcps run check
       - run: npm --prefix easy-social-mcps test
       - run: npm --prefix easy-mcp-installer run check

@@ -1,0 +1,10 @@
+{
+  "manifest_version": 3,
+  "name": "Easy Social Browser Companion",
+  "version": "0.1.0",
+  "description": "Use your signed-in Helium, Chrome, Edge, Brave or other Chromium browser tabs with Easy Social MCPs.",
+  "permissions": ["debugger", "tabs", "storage", "alarms"],
+  "host_permissions": ["http://127.0.0.1:19411/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_popup": "popup.html", "default_title": "Easy Social Browser Companion" }
+}

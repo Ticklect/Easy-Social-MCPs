@@ -1,0 +1,9 @@
+{
+  "name": "tiktok-easy-release-checks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check patch-upstream.mjs && node --check scripts/package-release.mjs && node --check scripts/build-v0.1.2.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}

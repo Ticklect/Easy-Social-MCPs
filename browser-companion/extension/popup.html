@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Easy Social Companion</title>
+  <style>
+    body { font: 13px system-ui, sans-serif; width: 310px; padding: 14px; color: #191919; }
+    h1 { font-size: 16px; margin: 0 0 8px; }
+    p { line-height: 1.45; }
+    input { width: 100%; box-sizing: border-box; font: 12px monospace; padding: 8px; }
+    button { margin-top: 8px; padding: 8px 12px; cursor: pointer; }
+    #status { font-weight: 600; }
+    .hint { color: #606060; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <h1>Easy Social Browser Companion</h1>
+  <p id="status" role="status">Checking connection…</p>
+  <p class="hint">Enter the pairing code printed by <code>npm start</code> in browser-companion. This connects your current browser profile and saved logins.</p>
+  <form id="pair">
+    <label for="code">Pairing code</label>
+    <input id="code" type="password" minlength="64" maxlength="64" pattern="[0-9a-f]{64}" autocomplete="off" required>
+    <button type="submit">Connect this browser</button>
+  </form>
+  <button id="disconnect" type="button">Disconnect</button>
+  <script src="popup.js"></script>
+</body>
+</html>

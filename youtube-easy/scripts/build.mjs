@@ -5,8 +5,11 @@ import { fileURLToPath } from "node:url";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const repositoryRoot = path.dirname(root);
-const version = "0.1.0";
+const version = "0.1.2";
 const artifactBase = `youtube-easy-v${version}`;
+
+// Git autocrlf differs by OS. Package the same UTF-8/LF bytes everywhere.
+const canonical = (data) => Buffer.from(data.toString("utf8").replace(/\r\n/g, "\n"), "utf8");
 
 function crcTable() {
   return Array.from({ length: 256 }, (_, number) => {
@@ -29,7 +32,7 @@ function collect(directory, prefix = "") {
     const disk = path.join(directory, item.name);
     const name = prefix ? `${prefix}/${item.name}` : item.name;
     if (item.isDirectory()) output.push(...collect(disk, name));
-    else if (item.isFile()) output.push({ name, data: fs.readFileSync(disk) });
+    else if (item.isFile()) output.push({ name, data: canonical(fs.readFileSync(disk)) });
   }
   return output;
 }
@@ -85,11 +88,11 @@ function makeZip(entries) {
 }
 
 function file(name, archiveName = name) {
-  return { name: archiveName, data: fs.readFileSync(path.join(root, name)) };
+  return { name: archiveName, data: canonical(fs.readFileSync(path.join(root, name))) };
 }
 
 function repositoryFile(name, archiveName = name) {
-  return { name: archiveName, data: fs.readFileSync(path.join(repositoryRoot, name)) };
+  return { name: archiveName, data: canonical(fs.readFileSync(path.join(repositoryRoot, name))) };
 }
 
 const outIndex = process.argv.indexOf("--out");

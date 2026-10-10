@@ -6,7 +6,7 @@ X Easy is an MCPB plugin for using X through a dedicated local browser session w
 
 ## 30-second setup
 
-1. Import `x-easy-v0.1.0.mcpb` into an MCPB-compatible host such as Chat On Steroids.
+1. Import `x-easy-v0.1.2.mcpb` into an MCPB-compatible host such as Chat On Steroids.
 2. Ask the agent to run `x_login`.
 3. Sign into X normally in the dedicated browser window.
 4. Run `x_status` once.
@@ -40,8 +40,10 @@ There is no X developer app setup, no client ID, no client secret, no API token 
 
 ## Download
 
-- [`x-easy-v0.1.0.mcpb`](./x-easy-v0.1.0.mcpb) — ready-to-import bundle
-- [`x-easy-v0.1.0.mcpb.sha256`](./x-easy-v0.1.0.mcpb.sha256) — SHA-256 checksum
+- [`x-easy-v0.1.2.mcpb`](./x-easy-v0.1.2.mcpb) — current ready-to-import bundle
+- [`x-easy-v0.1.2.mcpb.sha256`](./x-easy-v0.1.2.mcpb.sha256) — SHA-256 checksum
+- [`x-easy-v0.1.2-source.zip`](./x-easy-v0.1.2-source.zip) — maintained source and offline tests
+- [`x-easy-v0.1.0.mcpb`](./x-easy-v0.1.0.mcpb) — previous release, kept unchanged
 - [`manifest.json`](./manifest.json) — MCPB manifest
 
 ## Supported browsers
@@ -50,22 +52,35 @@ There is no X developer app setup, no client ID, no client secret, no API token 
 - Google Chrome
 - Microsoft Edge
 - Chromium
+- Brave, Vivaldi and Opera (supported Chromium builds)
 
 Windows Helium detection includes the common per-user install under `%LOCALAPPDATA%\imput\Helium\Application\chrome.exe`.
+
+An already running Chromium browser can be reused if it **already exposes a loopback CDP port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to the port in X Easy's environment, and optionally `EASY_SOCIAL_BROWSER_MODE=existing` to refuse a separate browser if the port is unavailable. X Easy keeps its existing tabs, profile and login intact. Ordinary Chrome windows do not expose CDP, and Chrome 136+ blocks remote debugging of its default profile.
+
+For an ordinary already signed-in window, the [Easy Social Browser Companion](../browser-companion/README.md) connects via an unpacked Chromium extension. It is intended for Helium, Chrome, Edge, Brave, Chromium, Vivaldi and Opera, and is automatically discovered after pairing. Firefox and Safari require a separate integration.
 
 ## Safety
 
 X content is untrusted. The MCP tells agents not to obey instructions inside posts or notifications. Browser debugging is loopback-only, uses an unpredictable browser-assigned port, and X URLs are restricted to real `x.com`/`twitter.com` HTTPS hosts.
 
-Writes are real external actions, so X Easy rate-limits them: identical recent writes are blocked and successful writes are capped at six per hour with a delay between actions.
+Writes are real external actions. From v0.1.1, all MCP processes sharing the dedicated local profile use one filesystem-backed profile lock. Browser navigations and scrolling are paced at least three seconds apart, and X-owned HTTP 429/503 responses observed through the browser's debugging protocol establish shared persistent cooldowns. This is a conservative page-activity gate; the website can send other background requests independently of the MCP.
+
+Write protection is shared by X account. Up to six **attempted** writes are permitted per hour, with a 30–60-second interval between dispatched UI actions. Identical confirmed actions reuse their prior result within ten minutes. If a post, reply, like, repost or bookmark was possibly dispatched but X never confirmed the outcome, X Easy records **UNCERTAIN** and will not automatically repeat it. Verify its state on X before taking any further action. The browser action may have happened even when confirmation failed.
+
+Cross-process leases record their owner process ID. An expired heartbeat alone cannot reclaim a live process's browser/account lease (for example, while its Node event loop is paused). Recovery of an owned lease requires both an expired heartbeat and evidence that the owning process has exited. An abandoned ownerless *reclamation claim* has a separate conservative grace period before recovery; unknown ownership of an actual browser/account lease fails closed.
+
+Engagement controls are restricted to exactly one post whose status URL matches the requested post ID. Missing or ambiguous posts/controls cause a safe failure instead of selecting the first visible post. When X returns a first-party HTTP 429/503, further browser commands stop; if the shared cooldown cannot be persisted, X Easy also fails closed rather than reporting a successful read or write.
+
+Build and test the maintained runtime with `npm run build`, `npm run check` and `npm test` from `x-easy/`. The build generates matching `src/` and `dist/`, versioned MCPB/source ZIP, and checksums without contacting X.
 
 ## Important warning
 
-This is an unofficial browser-session integration, not the official X API. X can change its website at any time, which may break selectors or behavior. Browser automation can also carry account/platform risk. Do not use X Easy for spam, mass posting, artificial engagement or attempts to evade X controls. Test with an account you are comfortable using for experimentation before relying on it.
+This is an unofficial browser-session integration, not the official X API. X's published rules restrict automated website access and browser scripting, and pacing does not make this integration authorised or guarantee that an account avoids restrictions. The official X API is the appropriate path for permitted automated access. X can change its website at any time, which may break selectors or behavior. Do not use X Easy for spam, mass posting, artificial engagement or attempts to evade X controls.
 
 ## Attribution
 
-X Easy v0.1.0 is a separate MCPB implementation that adapts X page selectors, DOM extraction logic, and safety lessons from **SohrabZ/x-browser-mcp v0.0.9**, which is MIT licensed. The original copyright and license are preserved in [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
+X Easy v0.1.x is a separate MCPB implementation that adapts X page selectors, DOM extraction logic, and safety lessons from **SohrabZ/x-browser-mcp v0.0.9**, which is MIT licensed. The original copyright and license are preserved in [`THIRD_PARTY_LICENSES.md`](./THIRD_PARTY_LICENSES.md).
 
 Original project: https://github.com/SohrabZ/x-browser-mcp
 

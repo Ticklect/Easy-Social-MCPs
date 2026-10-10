@@ -11,6 +11,7 @@ The local profile contains an authenticated browser session and should be protec
 - CDP HTTP and WebSocket endpoints must resolve to loopback (`127.0.0.1`, `::1`, or `localhost`) and match the selected ephemeral debug port.
 - Navigation accepts HTTPS only and validates exact Google/YouTube hosts and subdomains. Lookalike suffixes are rejected.
 - The browser uses a dedicated profile protected by a cross-process filesystem lease.
+- The same profile lease enforces minimum read/write intervals and persists YouTube HTTP 429/temporary 5xx cooldowns across processes. No stealth features or automatic throttle retries are used.
 - Tool results never expose cookies, storage values, authorization headers, or CDP session data.
 
 ## Writes
