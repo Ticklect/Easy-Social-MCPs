@@ -11,7 +11,7 @@ It requires Node.js 22 or newer. It does not run `npm install`.
 
 ## Use your existing browser login
 
-The `browser-companion` folder in this ZIP allows Reddit, X and YouTube MCPs to use your **already signed-in** Helium, Chrome, Edge, Brave, Vivaldi, Opera or Chromium browser. On Windows, double-click **`browser-companion/connect-windows.cmd`** to start the bridge and enable automatic startup. Load `browser-companion/extension` as an unpacked Chromium extension in your existing browser and enter the displayed pairing code once. The extension reconnects automatically afterwards. This is browser permission/pairing, not a second login to your social accounts. The four MCPB files themselves require no extra dependencies.
+The `browser-companion` folder in this ZIP allows Reddit, X and YouTube MCPs to use your **already signed-in** Helium, Chrome, Edge, Brave, Vivaldi, Opera or Chromium browser. On Windows, double-click **`browser-companion/connect-windows.cmd`** to start the bridge and enable automatic startup. Load `browser-companion/extension` as an unpacked Chromium extension in your existing browser and enter the displayed pairing code once. The extension reconnects automatically afterwards. Just tell your agent to post using the MCP; a separate login command is not needed. The plugin now fails clearly if it cannot use the current browser. Set `EASY_SOCIAL_BROWSER_MODE=dedicated` explicitly to use an isolated profile instead.
 
 Only one browser can be connected at a time for a given bridge. Firefox and Safari need separate support. TikTok Easy requires a browser already exposing a local CDP debugger; its Playwright backend cannot yet use the page-only companion. See `browser-companion/README.md` for the supported versions, browser limitations and security details.
 
@@ -27,7 +27,7 @@ node install-easy-mcp.mjs --host claude reddit-easy-v0.3.5.mcpb x-easy-v0.1.4.mc
 node install-easy-mcp.mjs --host both reddit-easy-v0.3.5.mcpb x-easy-v0.1.4.mcpb tiktok-easy-v0.1.4.mcpb youtube-easy-v0.1.4.mcpb
 ```
 
-Use `--host codex`, `--host claude`, or `--host both`. Restart the selected client after installation. Then prompts such as “Start Reddit login” or “Start YouTube login” work in a new chat.
+Use `--host codex`, `--host claude`, or `--host both`. Restart the selected client after installation. Once your browser companion is paired, prompts such as “Post this to r/SideProject using Reddit Easy” or “Post this on X using X Easy” work without a separate login command.
 
 To install only some services, remove the unwanted `.mcpb` filenames from the command. `SHA256SUMS.txt` contains checksums for the installer and all four bundles.
 
@@ -35,4 +35,4 @@ Each included component retains its own license and security documentation insid
 
 All four components now include additional request-safety checks. Their shared and/or local pacing and cooldown limits are deliberately conservative. These browser-session integrations are unofficial; they do not bypass site policies, guarantee uninterrupted access, or prevent account enforcement. In particular, X's automation rules prohibit scripting its website; users seeking authorised automated access should use the official API.
 
-All four MCPs can use a compatible Chromium browser already exposing a loopback CDP port when `EASY_SOCIAL_BROWSER_DEBUG_PORT` is set. Set `EASY_SOCIAL_BROWSER_MODE=existing` to prohibit a dedicated-profile fallback. Ordinary Chromium windows do not expose a debugging port and require the paired companion where supported. Browser permissions cannot be silently bypassed, and no cookies are copied from an existing profile.
+All four MCPs can use a compatible Chromium browser already exposing a loopback CDP port when `EASY_SOCIAL_BROWSER_DEBUG_PORT` is set. Reddit, X and YouTube default to existing-browser-only operation. Ordinary Chromium windows do not expose a debugging port and require the paired companion where supported. TikTok still requires full browser-level CDP access to reuse existing sessions. Browser permissions cannot be silently bypassed, and no cookies are copied from an existing profile.

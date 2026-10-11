@@ -109,7 +109,7 @@ test("dedicated browser launch binds loopback, uses an ephemeral port, and isola
   const browser = new YouTubeBrowser({
     stateDir: root,
     platform: "linux",
-    env: {},
+    env: { EASY_SOCIAL_BROWSER_MODE: "dedicated" },
     fsApi: fs,
     spawnFn: fakeSpawn,
     fetchFn: fakeFetch,
@@ -191,7 +191,20 @@ test("existing-browser-only mode refuses to launch a separate profile when the c
     spawnFn: () => { throw new Error("Must not spawn"); },
     candidateProvider: () => { throw new Error("Must not discover browsers"); },
   });
-  await assert.rejects(() => browser.start(), /requires the browser companion or EASY_SOCIAL_BROWSER_DEBUG_PORT/);
+  await assert.rejects(() => browser.start(), /could not access your current signed-in browser/);
+});
+
+test("default mode refuses a separate browser profile unless explicitly requested", async () => {
+  let spawned = false;
+  const browser = new YouTubeBrowser({
+    stateDir: fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-default-existing-")),
+    platform: "linux", env: { XDG_DATA_HOME: fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-no-bridge-")) },
+    fetchFn: async () => { throw new Error("No browser debugger"); },
+    debugPortProvider: () => [],
+    spawnFn: () => { spawned = true; throw new Error("Unexpected separate profile"); },
+  });
+  await assert.rejects(browser.start(), /could not access your current signed-in browser/);
+  assert.equal(spawned, false);
 });
 
 test("CDP file assignment resolves one input and sends only the supplied local path", async () => {

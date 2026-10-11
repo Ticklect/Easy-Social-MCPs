@@ -6,8 +6,8 @@ YouTube Easy is a ready-to-import MCP bundle for uploading and managing videos t
 
 1. Download `youtube-easy-v0.1.4.mcpb` from this repository.
 2. Import it into an MCPB-compatible host.
-3. Run `youtube_login`.
-4. Sign in to Google/YouTube normally in the dedicated browser window and choose the intended channel.
+3. Connect your existing signed-in browser once through the [Easy Social Browser Companion](../browser-companion/README.md), unless it already exposes a compatible local debugger.
+4. Ask the agent to work on YouTube using YouTube Easy. It uses the currently signed-in channel without a separate `youtube_login` step.
 5. Run `youtube_status` to verify the selected channel.
 
 Never type a Google password into an MCP tool. Authentication belongs only in the real Google/YouTube page opened by YouTube Easy. The bundle contains its complete Node 22 runtime code and has no npm dependencies or runtime install step.
@@ -36,9 +36,9 @@ Reads and writes now share a persisted browser-profile pacing state across indep
 
 ## Browsers and local data
 
-YouTube Easy detects Helium, Google Chrome, Microsoft Edge, and Chromium on Windows, macOS, and Linux. It starts a dedicated local profile and binds the browser debugger to `127.0.0.1` on an ephemeral port. The profile is separate from the user's everyday browser profile. `youtube_forget_session` closes the dedicated browser and removes only that profile.
+YouTube Easy detects Helium, Google Chrome, Microsoft Edge, and Chromium on Windows, macOS, and Linux. By default, it uses your accessible already-signed-in browser. If you explicitly select `EASY_SOCIAL_BROWSER_MODE=dedicated`, it starts an isolated local profile on an ephemeral loopback debugger port. `youtube_forget_session` closes only that dedicated browser and removes only its profile.
 
-You can also use an already running Chromium browser if it **already exposes a loopback CDP port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to that port in YouTube Easy's environment. Add `EASY_SOCIAL_BROWSER_MODE=existing` to prevent launching a dedicated browser if that connection fails. Its existing Google sign-in is reused, and its profile is never closed or cleared. Normally opened Chrome windows do not expose CDP; Chrome 136+ also blocks remote debugging of its default profile.
+You can also use an already running Chromium browser if it **already exposes a loopback CDP port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to that port in YouTube Easy's environment. A missing browser connection now produces a clear error by default instead of launching another profile. Its existing Google sign-in is reused, and its profile is never closed or cleared. Normally opened Chrome windows do not expose CDP; Chrome 136+ also blocks remote debugging of its default profile.
 
 To use an ordinary signed-in Helium, Chrome, Edge, Brave, Chromium, Vivaldi or Opera window, install and pair the [Easy Social Browser Companion](../browser-companion/README.md). It is discovered automatically and preserves your existing Google/YouTube login without copying cookies. Firefox and Safari require a separate browser implementation.
 

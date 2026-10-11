@@ -201,6 +201,7 @@ async function findAlreadyOpenBrowser() {
 }
 
 async function connectExistingBrowserPort() {
+  if (process.env.EASY_SOCIAL_BROWSER_MODE === "dedicated") return null;
   const port = existingBrowserPort();
   if (!port) {
     const keyFile = path.join(dataRoot(), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key");
@@ -214,10 +215,7 @@ async function connectExistingBrowserPort() {
       throw new Error("Easy Social browser companion is configured but unavailable. Start its local server and connect the Helium/Chromium extension.");
     }
     if (await findAlreadyOpenBrowser()) return discoveredExternalPort;
-    if (process.env.EASY_SOCIAL_BROWSER_MODE === "existing") {
-      throw new Error("Existing-browser mode requires the browser companion or EASY_SOCIAL_BROWSER_DEBUG_PORT.");
-    }
-    return null;
+    throw new Error("X Easy could not access your current signed-in browser. Connect Easy Social Browser Companion once (or expose a local browser debugger). A separate login profile is available only with EASY_SOCIAL_BROWSER_MODE=dedicated.");
   }
   const info = await fetchJson(`http://127.0.0.1:${port}/json/version`);
   if (!info?.webSocketDebuggerUrl) {
@@ -228,6 +226,7 @@ async function connectExistingBrowserPort() {
 }
 
 function isExternalPort(port) {
+  if (process.env.EASY_SOCIAL_BROWSER_MODE === "dedicated") return false;
   return Boolean(existingBrowserPort()) || port === discoveredExternalPort || (port === 19411 &&
     fs.existsSync(path.join(dataRoot(), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key")));
 }
@@ -536,7 +535,7 @@ async function getSession(cdp, discoverHandle = false) {
 
 async function requireLogin(cdp) {
   const session = await getSession(cdp, false);
-  if (!session.loggedIn) throw new Error("X does not show an active signed-in account. Connect an already signed-in browser using Easy Social Browser Companion, or use x_login.");
+  if (!session.loggedIn) throw new Error("X doesn't show a signed-in account in the connected browser. Open X in your normal browser, sign in there and retry the same command.");
   const href = await evaluate(cdp, "location.href").catch(() => "");
   if (String(href).includes("/i/flow/login")) throw new Error("X is showing the login flow. Run x_login and finish signing in first.");
 }
@@ -1149,7 +1148,7 @@ const tools = [
   },
   {
     name: "x_create_post",
-    description: `Publish a new post to X as the signed-in user. ${WRITE_WARNING}`,
+    description: `Publish directly to X using the currently signed-in browser account. No separate login tool is needed. ${WRITE_WARNING}`,
     inputSchema: { type: "object", properties: { text: { type: "string", minLength: 1, maxLength: MAX_POST_CHARS } }, required: ["text"], additionalProperties: false },
     annotations: { title: "Post to X", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     execute: async (raw) => {

@@ -236,6 +236,7 @@ async function findAlreadyOpenBrowser() {
 }
 
 async function connectExistingBrowserPort() {
+  if (process.env.EASY_SOCIAL_BROWSER_MODE === "dedicated") return null;
   const port = existingBrowserPort();
   if (!port) {
     const keyFile = path.join(dataRoot(), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key");
@@ -249,10 +250,7 @@ async function connectExistingBrowserPort() {
       throw new Error("Easy Social browser companion is configured but unavailable. Start its local server and connect the Helium/Chromium extension.");
     }
     if (await findAlreadyOpenBrowser()) return discoveredExternalPort;
-    if (process.env.EASY_SOCIAL_BROWSER_MODE === "existing") {
-      throw new Error("Existing-browser mode requires the browser companion or EASY_SOCIAL_BROWSER_DEBUG_PORT.");
-    }
-    return null;
+    throw new Error("Reddit Easy could not access your current signed-in browser. Connect Easy Social Browser Companion once (or expose a local browser debugger). A separate login profile is available only with EASY_SOCIAL_BROWSER_MODE=dedicated.");
   }
   const info = await fetchJson(`http://127.0.0.1:${port}/json/version`);
   if (!info?.webSocketDebuggerUrl) {
@@ -263,6 +261,7 @@ async function connectExistingBrowserPort() {
 }
 
 function isExternalPort(port) {
+  if (process.env.EASY_SOCIAL_BROWSER_MODE === "dedicated") return false;
   return Boolean(existingBrowserPort()) || port === discoveredExternalPort || (port === 19411 &&
     fs.existsSync(path.join(dataRoot(), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key")));
 }
@@ -862,7 +861,7 @@ function readResult(label, payload) {
 
 async function requireRedditLogin(cdp) {
   const session = await getSession(cdp);
-  if (!session.loggedIn) throw new Error("No signed-in Reddit account is accessible. Connect Easy Social Browser Companion with your signed-in browser, or run reddit_login.");
+  if (!session.loggedIn) throw new Error("No signed-in Reddit account was found in the connected browser. Open Reddit in your usual browser and sign in there, then retry the same command.");
   return session;
 }
 
@@ -1350,7 +1349,7 @@ const tools = [
   },
   {
     name: "reddit_create_post",
-    description: "Publish a real text or link post to Reddit using the user's dedicated browser login. Check subreddit rules/flairs first when practical. Do not mass-post or repeat identical content.",
+    description: "Publish a real text or link post directly using the user's currently signed-in Reddit browser account. No separate login tool is needed. Check subreddit rules/flairs first when practical. Do not mass-post or repeat identical content.",
     inputSchema: {
       type: "object",
       properties: {
@@ -1386,8 +1385,8 @@ const tools = [
 
       return await withRedditPage(async (cdp) => {
         const session = await getSession(cdp);
-        if (!session.loggedIn) throw new Error("Not logged in. Run reddit_login first and sign in in the dedicated browser window.");
-        if (!session.modhash) throw new Error("Reddit login is present, but the browser session did not expose the required session token. Open reddit.com in the dedicated browser and try again.");
+        if (!session.loggedIn) throw new Error("Reddit isn't signed in within the connected browser. Sign in on Reddit in your normal browser and retry this post.");
+        if (!session.modhash) throw new Error("Reddit's signed-in browser session could not authorize this post. Refresh Reddit in your normal browser and try again.");
         const outcome = await coordinatedWrite({
           root: appDir,
           account: session.username,

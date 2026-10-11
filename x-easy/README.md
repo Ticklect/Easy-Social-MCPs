@@ -1,14 +1,14 @@
 # X Easy
 
-**Import → log in → use X.**
+**Import → use the signed-in browser → post on X.**
 
-X Easy is an MCPB plugin for using X through a dedicated local browser session without creating an X developer app or pasting API credentials into plugin settings.
+X Easy is an MCPB plugin for using X through your already signed-in browser session without creating an X developer app or pasting API credentials into plugin settings.
 
 ## 30-second setup
 
 1. Import `x-easy-v0.1.4.mcpb` into an MCPB-compatible host such as Chat On Steroids.
-2. Ask the agent to run `x_login`.
-3. Sign into X normally in the dedicated browser window.
+2. Connect your usual signed-in browser once using the [Easy Social Browser Companion](../browser-companion/README.md), unless it already exposes a compatible local debugger.
+3. Ask the agent to post on X using X Easy. No `x_login` command is required.
 4. Run `x_status` once.
 5. Done.
 
@@ -36,7 +36,7 @@ X Easy can read your home timeline, search, user timelines, threads/replies, men
 
 ## Why this is easier
 
-There is no X developer app setup, no client ID, no client secret, no API token and no password field in the plugin. Your login happens directly on `x.com` in a dedicated local Helium/Chrome/Edge/Chromium profile.
+There is no X developer app setup, no client ID, no client secret, no API token and no password field in the plugin. Your existing X sign-in is reused from the connected browser.
 
 ## Download
 
@@ -56,7 +56,7 @@ There is no X developer app setup, no client ID, no client secret, no API token 
 
 Windows Helium detection includes the common per-user install under `%LOCALAPPDATA%\imput\Helium\Application\chrome.exe`.
 
-An already running Chromium browser can be reused if it **already exposes a loopback CDP port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to the port in X Easy's environment, and optionally `EASY_SOCIAL_BROWSER_MODE=existing` to refuse a separate browser if the port is unavailable. X Easy keeps its existing tabs, profile and login intact. Ordinary Chrome windows do not expose CDP, and Chrome 136+ blocks remote debugging of its default profile.
+An already running Chromium browser can be reused if it **already exposes a loopback CDP port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to the port in X Easy's environment. X Easy defaults to reusing that browser or the paired companion; it does not open an isolated profile unless `EASY_SOCIAL_BROWSER_MODE=dedicated` is explicitly set. Ordinary Chrome windows do not expose CDP, and Chrome 136+ blocks remote debugging of its default profile.
 
 For an ordinary already signed-in window, the [Easy Social Browser Companion](../browser-companion/README.md) connects via an unpacked Chromium extension. It is intended for Helium, Chrome, Edge, Brave, Chromium, Vivaldi and Opera, and is automatically discovered after pairing. Firefox and Safari require a separate integration.
 

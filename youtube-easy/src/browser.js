@@ -241,7 +241,7 @@ export class YouTubeBrowser {
     this.candidateProvider = candidateProvider || (() => browserCandidates(platform, env));
     this.debugPortProvider = debugPortProvider || (() => listAlreadyOpenDebuggers({ platform, env }));
     this.existingDebugPort = env.EASY_SOCIAL_BROWSER_DEBUG_PORT || null;
-    this.browserMode = env.EASY_SOCIAL_BROWSER_MODE || "auto";
+    this.browserMode = env.EASY_SOCIAL_BROWSER_MODE || "existing";
     this.bridgeKeyFile = path.join(defaultDataRoot(platform, env), "ChatOnSteroids", "EasySocialBrowserBridge", "pairing-key");
     this.usingExternalBrowser = false;
     this.discoveredExternalPort = null;
@@ -286,6 +286,10 @@ export class YouTubeBrowser {
   }
 
   async start() {
+    if (this.browserMode === "dedicated") {
+      this.usingExternalBrowser = false;
+      return await this.startDedicated();
+    }
     if (this.existingDebugPort !== null) {
       const value = this.existingDebugPort;
       if (!/^[1-9][0-9]{0,4}$/.test(value) || Number(value) > 65535) {
@@ -321,9 +325,10 @@ export class YouTubeBrowser {
       this.usingExternalBrowser = true;
       return discovered;
     }
-    if (this.browserMode === "existing") {
-      throw new Error("Existing-browser mode requires the browser companion or EASY_SOCIAL_BROWSER_DEBUG_PORT.");
-    }
+    throw new Error("YouTube Easy could not access your current signed-in browser. Connect Easy Social Browser Companion once (or expose a local browser debugger). A separate login profile is available only with EASY_SOCIAL_BROWSER_MODE=dedicated.");
+  }
+
+  async startDedicated() {
     this.usingExternalBrowser = false;
     const running = await this.findRunningPort();
     if (running) return running;

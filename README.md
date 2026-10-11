@@ -2,18 +2,18 @@
 
 **Read, search and post on Reddit from an MCP host without making a Reddit developer app, copying API keys, or putting your Reddit password into plugin settings.**
 
-Reddit Easy first searches for an accessible already-open signed-in browser and reuses its session, using its own dedicated Chromium profile when browser access has not been granted.
+Reddit Easy, X Easy and YouTube Easy use your accessible, already signed-in browser by default. Just ask your agent to post using the relevant MCP. They never silently create a separate login profile; explicitly set `EASY_SOCIAL_BROWSER_MODE=dedicated` if you want one.
 
 ## Easy Social MCPs
 
 This repository includes all four ready-to-use MCPs:
 
-| MCP | Start login | Download this MCP file |
+| MCP | Example agent request | Download this MCP file |
 | --- | --- | --- |
-| [Reddit Easy](./README.md) | `reddit_login` | [`reddit-easy-v0.3.5.mcpb`](./reddit-easy-v0.3.5.mcpb) |
-| [X Easy](./x-easy/README.md) | `x_login` | [`x-easy-v0.1.4.mcpb`](./x-easy/x-easy-v0.1.4.mcpb) |
-| [TikTok Easy](./tiktok-easy/README.md) | `tiktok_login` | [`tiktok-easy-v0.1.4.mcpb`](./tiktok-easy/tiktok-easy-v0.1.4.mcpb) |
-| [YouTube Easy](./youtube-easy/README.md) | `youtube_login` | [`youtube-easy-v0.1.4.mcpb`](./youtube-easy/youtube-easy-v0.1.4.mcpb) |
+| [Reddit Easy](./README.md) | “Post this to r/SideProject using Reddit Easy” | [`reddit-easy-v0.3.5.mcpb`](./reddit-easy-v0.3.5.mcpb) |
+| [X Easy](./x-easy/README.md) | “Post this on X using X Easy” | [`x-easy-v0.1.4.mcpb`](./x-easy/x-easy-v0.1.4.mcpb) |
+| [TikTok Easy](./tiktok-easy/README.md) | “Post this video using TikTok Easy” (requires full CDP or TikTok login) | [`tiktok-easy-v0.1.4.mcpb`](./tiktok-easy/tiktok-easy-v0.1.4.mcpb) |
+| [YouTube Easy](./youtube-easy/README.md) | “Upload this video using YouTube Easy” | [`youtube-easy-v0.1.4.mcpb`](./youtube-easy/youtube-easy-v0.1.4.mcpb) |
 
 ### Want all four?
 
@@ -35,7 +35,7 @@ https://github.com/Ticklect/Easy-Social-MCPs/releases/download/easy-mcp-installe
 Download both files to a temporary folder, verify the release checksums, extract the installer, and run it for this client only: use --host codex when running in Codex or --host claude when running in Claude Code. Do not run npm install and do not ask me to edit MCP configuration manually. Verify that the MCP registration succeeded, tell me whether I need to restart the client, and remove only the temporary installer/download files. Do not start a login, upload, post, delete, or other external action yet.
 ```
 
-For example, start the prompt with “Install YouTube Easy into my Codex” and use the YouTube `.mcpb` link from the table. After restarting, say “Start YouTube login.”
+For example, start the prompt with “Install YouTube Easy into my Codex” and use the YouTube `.mcpb` link from the table. After restarting, ask the agent to upload a video using your already signed-in browser. The browser companion must be paired once if the existing browser does not expose a debugger.
 
 ### Manual installation in Codex or Claude Code
 
@@ -53,7 +53,7 @@ Restart Codex or Claude Code afterward. The first command installs only into Cod
 
 ## YouTube Easy
 
-**[YouTube Easy](./youtube-easy/README.md)** brings the same import-and-sign-in approach to YouTube Studio: download the MCPB, import it, run `youtube_login`, and sign in normally in its dedicated browser profile. No YouTube Data API, Google Cloud project, OAuth client, API key, copied cookies, or runtime npm install is required.
+**[YouTube Easy](./youtube-easy/README.md)** connects to a previously approved signed-in browser for YouTube Studio, without requiring a separate account login command. No YouTube Data API, Google Cloud project, OAuth client, API key, copied cookies, or runtime npm install is required.
 
 It includes fail-closed video/Short upload, metadata editing, thumbnails, scheduling, comments, channel/video/search reads, and transcript extraction when the public page exposes it. Cross-process leases and persisted reconciliation return `UNCERTAIN` instead of risking duplicate writes after an ambiguous crash.
 
@@ -75,20 +75,19 @@ It supports posting and native scheduling, likes, follows, deletion, profile/ava
 
 ## Also available: X Easy
 
-I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It follows the same basic idea: import the MCPB, sign in once in a dedicated browser, then read your timeline, search, mentions, notifications and bookmarks, or explicitly post, reply, like, repost and bookmark without setting up X API credentials.
+I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It reuses your connected signed-in browser to read your timeline, search, mentions, notifications and bookmarks, or explicitly post, reply, like, repost and bookmark without setting up X API credentials.
 
 [X Easy v0.1.4 bundle](./x-easy/x-easy-v0.1.4.mcpb)
 
 > X explicitly prohibits scripting its website as a form of automation, and enforcement can include suspension. Local pacing does not make this approach authorised or guarantee account safety. Review the [X Easy security warnings](./x-easy/README.md) and use X's official API for authorised automation.
 
-## 30-second setup
+## Use Reddit Easy
 
-1. Download `reddit-easy.mcpb` or the versioned v0.3.4 bundle from this repository.
-2. Import it into Chat On Steroids or another MCPB-compatible host.
-3. Ask the agent to run `reddit_login`.
-4. Sign in to Reddit in the dedicated browser window.
-5. Run `reddit_status`.
-6. Done.
+1. Import `reddit-easy.mcpb` or the versioned v0.3.5 bundle into Chat On Steroids or another MCPB-compatible host.
+2. Pair the [browser companion](./browser-companion/README.md) once if your browser does not already expose a local debugger.
+3. Ask the agent to post to a named subreddit with Reddit Easy. It discovers the current signed-in account and calls `reddit_create_post` directly.
+
+`reddit_status` remains available when you want to check which account is connected.
 
 No Reddit developer portal. No client ID. No client secret. No Reddit password field in the plugin.
 
@@ -183,7 +182,7 @@ On Windows, the MCPs automatically check already-running Chromium/Helium browser
 
 Reddit Easy, X Easy, TikTok Easy and YouTube Easy can connect to a Chromium browser **already listening on a local Chrome DevTools Protocol (CDP) port**. Set `EASY_SOCIAL_BROWSER_DEBUG_PORT` to its port in the MCP environment. The MCP reuses the browser's authenticated session and opens its own social tab when appropriate; it never exports or copies authentication cookies.
 
-Set `EASY_SOCIAL_BROWSER_MODE=existing` to fail with a clear error instead of launching a separate browser when the connection is unavailable. Otherwise, the default dedicated-browser fallback is retained.
+Reddit, X and YouTube now default to your **current accessible browser session**. Ask your agent to post normally; it can use the publishing tool directly without a separate login command. If no existing browser is accessible, the tool reports how to connect it and does not silently open a second browser/profile. Set `EASY_SOCIAL_BROWSER_MODE=dedicated` only when you explicitly want an isolated login instead. TikTok Easy currently requires a browser with a full local CDP debugger to reuse an existing login, and cannot use the normal browser companion alone.
 
 This direct-debugger option works only if the browser **already exposes CDP**. Ordinary Chrome windows do not. Chrome 136+ prevents remote debugging of its default user-data directory, and adding a debugging flag after Chrome has started does not change the running process. Use the companion extension above to reuse a normal signed-in browser. Do not copy the everyday profile or its cookies into the MCP.
 
