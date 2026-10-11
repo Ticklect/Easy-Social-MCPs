@@ -1070,7 +1070,7 @@ const tools = [
     },
   },
   {
-    name: "get_user_posts",
+    name: "x_get_user_posts",
     description: `Read a specific X account's recent posts by handle. ${UNTRUSTED}`,
     inputSchema: {
       type: "object",
@@ -1109,7 +1109,7 @@ const tools = [
     execute: async (raw) => { const args = asObject(raw); return await withXPage(async (cdp) => renderPosts("Mentions", await collectPosts(cdp, "https://x.com/notifications/mentions", args.limit))); },
   },
   {
-    name: "get_notifications",
+    name: "x_get_notifications",
     description: `Read X notifications such as likes, follows, reposts and recommendations. ${UNTRUSTED}`,
     inputSchema: { type: "object", properties: { limit: { type: "integer", minimum: 1, maximum: MAX_LIMIT } }, additionalProperties: false },
     annotations: { title: "Read X notifications", readOnlyHint: true, openWorldHint: true },
@@ -1148,7 +1148,7 @@ const tools = [
     },
   },
   {
-    name: "create_post",
+    name: "x_create_post",
     description: `Publish a new post to X as the signed-in user. ${WRITE_WARNING}`,
     inputSchema: { type: "object", properties: { text: { type: "string", minLength: 1, maxLength: MAX_POST_CHARS } }, required: ["text"], additionalProperties: false },
     annotations: { title: "Post to X", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
@@ -1161,7 +1161,7 @@ const tools = [
     },
   },
   {
-    name: "reply_to_post",
+    name: "x_reply_to_post",
     description: `Reply to an X post as the signed-in user. ${WRITE_WARNING}`,
     inputSchema: { type: "object", properties: { handle: { type: "string", minLength: 1, maxLength: 32 }, post_id: { type: "string", pattern: "^\\d+$", maxLength: 25 }, text: { type: "string", minLength: 1, maxLength: MAX_POST_CHARS } }, required: ["handle", "post_id", "text"], additionalProperties: false },
     annotations: { title: "Reply on X", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },

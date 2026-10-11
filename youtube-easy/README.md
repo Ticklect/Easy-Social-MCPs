@@ -17,7 +17,7 @@ Never type a Google password into an MCP tool. Authentication belongs only in th
 - Session: `youtube_login`, `youtube_status`, `youtube_forget_session`
 - Uploads: `upload_video`, `upload_short`, `get_upload_status`
 - Management: `get_my_videos`, `update_video`, `set_thumbnail`, `schedule_video`, `delete_video`
-- Community: `get_comments`, `reply_to_comment`
+- Community: `youtube_get_comments`, `reply_to_comment`
 - Public reads: `get_channel`, `search_youtube`, `get_video`, `get_transcript`
 
 Uploads accept a local video path, title, description, private/unlisted/public visibility, required made-for-kids declaration, optional schedule, thumbnail, exact existing playlist name, and tags. `upload_short` additionally validates that locally readable media metadata is no longer than 180 seconds and is square or vertical before any final action.

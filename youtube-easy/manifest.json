@@ -60,7 +60,7 @@
       "description": "Delete an owned video"
     },
     {
-      "name": "get_comments",
+      "name": "youtube_get_comments",
       "description": "Read Studio comments"
     },
     {

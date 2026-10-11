@@ -36,7 +36,7 @@
       "description": "Search X posts"
     },
     {
-      "name": "get_user_posts",
+      "name": "x_get_user_posts",
       "description": "Read an X account's recent posts"
     },
     {
@@ -48,7 +48,7 @@
       "description": "Read posts mentioning the signed-in user"
     },
     {
-      "name": "get_notifications",
+      "name": "x_get_notifications",
       "description": "Read X notifications"
     },
     {
@@ -64,11 +64,11 @@
       "description": "Read a supported x.com/twitter.com URL"
     },
     {
-      "name": "create_post",
+      "name": "x_create_post",
       "description": "Publish a post to X"
     },
     {
-      "name": "reply_to_post",
+      "name": "x_reply_to_post",
       "description": "Reply to an X post"
     },
     {

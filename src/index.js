@@ -1126,7 +1126,7 @@ const tools = [
     },
   },
   {
-    name: "get_comments",
+    name: "reddit_get_comments",
     description: `Read a Reddit comment tree as a flat list with depth, parent IDs, timestamps and nested replies. Reddit may leave additional 'more comments' blocks unloaded. ${REDDIT_CONTENT_WARNING}`,
     inputSchema: {
       type: "object",
@@ -1176,7 +1176,7 @@ const tools = [
     },
   },
   {
-    name: "get_notifications",
+    name: "reddit_get_notifications",
     description: `Read account notifications through Reddit's browser-session notification endpoint. If Reddit changes or disables that endpoint, the tool falls back to inbox activity and says so. ${REDDIT_CONTENT_WARNING}`,
     inputSchema: {
       type: "object",
@@ -1266,7 +1266,7 @@ const tools = [
     },
   },
   {
-    name: "get_user_posts",
+    name: "reddit_get_user_posts",
     description: `Read a Reddit user's submitted posts, comments, or combined overview, with after-cursor pagination. ${REDDIT_CONTENT_WARNING}`,
     inputSchema: {
       type: "object",
@@ -1349,7 +1349,7 @@ const tools = [
     },
   },
   {
-    name: "create_post",
+    name: "reddit_create_post",
     description: "Publish a real text or link post to Reddit using the user's dedicated browser login. Check subreddit rules/flairs first when practical. Do not mass-post or repeat identical content.",
     inputSchema: {
       type: "object",
@@ -1423,7 +1423,7 @@ const tools = [
     },
   },
   {
-    name: "reply_to_post",
+    name: "reddit_reply_to_post",
     description: "Publish a real comment on a Reddit post/comment using a Reddit fullname (t3_... for a post or t1_... for a comment).",
     inputSchema: {
       type: "object",

@@ -141,7 +141,7 @@ export function createReadHandlers({
       });
     },
 
-    async get_comments(value) {
+    async youtube_get_comments(value) {
       const args = asObject(value);
       const limit = limitArg(args.limit, 50, 100);
       const id = args.video_id === undefined ? undefined : normalizeVideoReference(stringArg(args, "video_id", { max: 100 }));

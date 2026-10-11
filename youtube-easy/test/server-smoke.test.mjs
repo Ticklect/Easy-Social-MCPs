@@ -42,10 +42,10 @@ test("MCP initialize and tools/list expose all required YouTube Easy tools", asy
 
   const names = listed.result.tools.map((tool) => tool.name).sort();
   assert.deepEqual(names, [
-    "delete_video", "get_channel", "get_comments", "get_my_videos", "get_transcript",
+    "delete_video", "get_channel", "get_my_videos", "get_transcript",
     "get_upload_status", "get_video", "reply_to_comment", "schedule_video", "search_youtube",
     "set_thumbnail", "update_video", "upload_short", "upload_video", "youtube_forget_session",
-    "youtube_login", "youtube_status",
+    "youtube_get_comments", "youtube_login", "youtube_status",
   ]);
 });
 

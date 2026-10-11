@@ -81,7 +81,7 @@ test("Studio video, processing, and comment reads are bounded and marked untrust
   const { handlers } = fixture();
   const videos = await handlers.get_my_videos({ limit: 1 });
   const status = await handlers.get_upload_status({ video_id: "vid_test_01" });
-  const comments = await handlers.get_comments({ limit: 1 });
+  const comments = await handlers.youtube_get_comments({ limit: 1 });
   assert.equal(videos.videos.length, 1);
   assert.equal(status.video.uploadStatus, "processing");
   assert.equal(comments.comments[0].commentId, "comment-1");

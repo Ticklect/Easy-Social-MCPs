@@ -52,7 +52,7 @@
       "description": "Read full Reddit post details"
     },
     {
-      "name": "get_comments",
+      "name": "reddit_get_comments",
       "description": "Read nested Reddit comments"
     },
     {
@@ -60,7 +60,7 @@
       "description": "Read inbox, replies, mentions and messages"
     },
     {
-      "name": "get_notifications",
+      "name": "reddit_get_notifications",
       "description": "Read Reddit account notifications"
     },
     {
@@ -72,7 +72,7 @@
       "description": "Read a Reddit user profile"
     },
     {
-      "name": "get_user_posts",
+      "name": "reddit_get_user_posts",
       "description": "Read a Reddit user's posts/comments/overview"
     },
     {
@@ -84,11 +84,11 @@
       "description": "Browse r/all"
     },
     {
-      "name": "create_post",
+      "name": "reddit_create_post",
       "description": "Publish a text or link post"
     },
     {
-      "name": "reply_to_post",
+      "name": "reddit_reply_to_post",
       "description": "Reply to a post or comment"
     },
     {

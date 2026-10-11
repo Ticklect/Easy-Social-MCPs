@@ -19,6 +19,8 @@ This repository includes all four ready-to-use MCPs:
 
 **[Easy Social MCPs All-in-One v0.1.5](./easy-social-mcps/easy-social-mcps-v0.1.5.zip)** contains the installer, all four MCPs, and the existing-browser companion for reusing signed-in sessions. The previous [v0.1.4 build](./easy-social-mcps/easy-social-mcps-v0.1.4.zip) remains available.
 
+When multiple MCPs are installed together, their tool names must be unique. Use `reddit_create_post` and `x_create_post` to publish, and `reddit_reply_to_post` and `x_reply_to_post` to reply. Shared read commands also have platform prefixes, such as `reddit_get_user_posts`, `x_get_notifications`, and `youtube_get_comments`. Refresh the MCP connection after updating an existing installation so the client discovers the renamed commands.
+
 ### Easiest setup: give this prompt to your coding agent
 
 Copy a `.mcpb` link from the table above, replace `<MCPB LINK>` below, and paste the whole prompt into Codex or Claude Code:
@@ -217,9 +219,9 @@ See [SECURITY.md](./SECURITY.md).
 
 ## Important limitations
 
-Reddit Easy uses Reddit's authenticated web/API surfaces through your local browser session. Reddit can change these at any time. `get_notifications` therefore falls back to inbox activity when Reddit's notification endpoint is unavailable.
+Reddit Easy uses Reddit's authenticated web/API surfaces through your local browser session. Reddit can change these at any time. `reddit_get_notifications` therefore falls back to inbox activity when Reddit's notification endpoint is unavailable.
 
-Comment pages can contain Reddit `more comments` placeholders. `get_comments` returns the nested comments Reddit supplied in that request and tells you when unloaded `more` blocks were present; it does not silently pretend those omitted comments were fetched.
+Comment pages can contain Reddit `more comments` placeholders. `reddit_get_comments` returns the nested comments Reddit supplied in that request and tells you when unloaded `more` blocks were present; it does not silently pretend those omitted comments were fetched.
 
 A home-feed read shows the feed Reddit returns when you call it. It cannot reconstruct exactly what your personalized feed looked like hours earlier unless it was read and saved at that time.
 
