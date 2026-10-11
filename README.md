@@ -12,12 +12,12 @@ This repository includes all four ready-to-use MCPs:
 | --- | --- | --- |
 | [Reddit Easy](./README.md) | “Post this to r/SideProject using Reddit Easy” | [`reddit-easy-v0.3.5.mcpb`](./reddit-easy-v0.3.5.mcpb) |
 | [X Easy](./x-easy/README.md) | “Post this on X using X Easy” | [`x-easy-v0.1.4.mcpb`](./x-easy/x-easy-v0.1.4.mcpb) |
-| [TikTok Easy](./tiktok-easy/README.md) | “Post this video using TikTok Easy” (requires full CDP or TikTok login) | [`tiktok-easy-v0.1.4.mcpb`](./tiktok-easy/tiktok-easy-v0.1.4.mcpb) |
+| [TikTok Easy](./tiktok-easy/README.md) | “Post this video using TikTok Easy” (reuses full CDP automatically) | [`tiktok-easy-v0.1.5.mcpb`](./tiktok-easy/tiktok-easy-v0.1.5.mcpb) |
 | [YouTube Easy](./youtube-easy/README.md) | “Upload this video using YouTube Easy” | [`youtube-easy-v0.1.4.mcpb`](./youtube-easy/youtube-easy-v0.1.4.mcpb) |
 
 ### Want all four?
 
-**[Easy Social MCPs All-in-One v0.1.5](./easy-social-mcps/easy-social-mcps-v0.1.5.zip)** contains the installer, all four MCPs, and the existing-browser companion for reusing signed-in sessions. The previous [v0.1.4 build](./easy-social-mcps/easy-social-mcps-v0.1.4.zip) remains available.
+**[Easy Social MCPs All-in-One v0.1.6](./easy-social-mcps/easy-social-mcps-v0.1.6.zip)** contains the installer, all four MCPs, and the existing-browser companion for reusing signed-in sessions. The previous [v0.1.5 build](./easy-social-mcps/easy-social-mcps-v0.1.5.zip) remains available.
 
 When multiple MCPs are installed together, their tool names must be unique. Use `reddit_create_post` and `x_create_post` to publish, and `reddit_reply_to_post` and `x_reply_to_post` to reply. Shared read commands also have platform prefixes, such as `reddit_get_user_posts`, `x_get_notifications`, and `youtube_get_comments`. Refresh the MCP connection after updating an existing installation so the client discovers the renamed commands.
 
@@ -46,7 +46,7 @@ Extract the installer ZIP, place the downloaded `.mcpb` files beside `install-ea
 ```text
 node install-easy-mcp.mjs --host codex youtube-easy-v0.1.4.mcpb
 node install-easy-mcp.mjs --host claude youtube-easy-v0.1.4.mcpb
-node install-easy-mcp.mjs --host both reddit-easy-v0.3.5.mcpb x-easy-v0.1.4.mcpb tiktok-easy-v0.1.4.mcpb youtube-easy-v0.1.4.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.5.mcpb x-easy-v0.1.4.mcpb tiktok-easy-v0.1.5.mcpb youtube-easy-v0.1.4.mcpb
 ```
 
 Restart Codex or Claude Code afterward. The first command installs only into Codex, the second only into Claude Code, and `--host both` installs into both.
@@ -65,11 +65,11 @@ It includes fail-closed video/Short upload, metadata editing, thumbnails, schedu
 
 I also added **[TikTok Easy](./tiktok-easy/README.md)** for TikTok. It packages the browser-session TikTok MCP into a ready-to-import bundle with no TikTok developer app or API keys.
 
-**Import → run `tiktok_login` → scan the TikTok QR → done.**
+**Import → ask the agent to post using `tiktok_post` → reuse the signed-in TikTok profile automatically when a full local CDP connection is available.** Otherwise, explicitly use `tiktok_login` to set up a separate QR profile.
 
 It supports posting and native scheduling, likes, follows, deletion, profile/avatar changes, analytics, saved performance history, and hook analysis.
 
-[TikTok Easy v0.1.4 bundle](./tiktok-easy/tiktok-easy-v0.1.4.mcpb)
+[TikTok Easy v0.1.5 bundle](./tiktok-easy/tiktok-easy-v0.1.5.mcpb)
 
 > TikTok Easy is an unofficial browser-session integration and carries platform/account risk. Read its [security notes and attribution](./tiktok-easy/README.md) before using it.
 

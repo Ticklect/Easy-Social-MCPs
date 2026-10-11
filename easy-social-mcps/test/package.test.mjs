@@ -9,7 +9,7 @@ import test from "node:test";
 
 const packageDir = path.resolve(import.meta.dirname, "..");
 const repoRoot = path.resolve(packageDir, "..");
-const expectedVersion = "0.1.5";
+const expectedVersion = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf8")).version;
 const archivePath = path.join(packageDir, `easy-social-mcps-v${expectedVersion}.zip`);
 const checksumPath = `${archivePath}.sha256`;
 
