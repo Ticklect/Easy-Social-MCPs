@@ -11,7 +11,7 @@ It requires Node.js 22 or newer. It does not run `npm install`.
 
 ## Use your existing browser login
 
-The `browser-companion` folder in this ZIP allows Reddit, X and YouTube MCPs to use your **already signed-in** Helium, Chrome, Edge, Brave, Vivaldi, Opera or Chromium browser. On Windows, double-click `browser-companion/start-windows.cmd` to start the local bridge, then load `browser-companion/extension` as an unpacked Chromium extension in your existing browser and enter the printed pairing code once. Keep the bridge running during MCP use. This is browser permission/pairing, not a second login to your social accounts. The four MCPB files themselves require no extra dependencies.
+The `browser-companion` folder in this ZIP allows Reddit, X and YouTube MCPs to use your **already signed-in** Helium, Chrome, Edge, Brave, Vivaldi, Opera or Chromium browser. On Windows, double-click **`browser-companion/connect-windows.cmd`** to start the bridge and enable automatic startup. Load `browser-companion/extension` as an unpacked Chromium extension in your existing browser and enter the displayed pairing code once. The extension reconnects automatically afterwards. This is browser permission/pairing, not a second login to your social accounts. The four MCPB files themselves require no extra dependencies.
 
 Only one browser can be connected at a time for a given bridge. Firefox and Safari need separate support. TikTok Easy requires a browser already exposing a local CDP debugger; its Playwright backend cannot yet use the page-only companion. See `browser-companion/README.md` for the supported versions, browser limitations and security details.
 

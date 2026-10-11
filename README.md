@@ -171,7 +171,7 @@ Helium support includes common Windows installs under `%LOCALAPPDATA%\imput\Heli
 
 ### Use your signed-in Helium / Chromium browser
 
-The [Easy Social Browser Companion](./browser-companion/README.md) connects Reddit, X and YouTube Easy to an existing signed-in Helium, Chrome, Edge, Brave, Chromium, Vivaldi or Opera window. On Windows, run `browser-companion/start-windows.cmd` to start its local bridge; then load `browser-companion/extension` as an unpacked browser extension and enter the bridge's one-time pairing code. Once connected, the MCPs reuse your existing sign-ins and only open their own social tabs. No second social login is necessary.
+The [Easy Social Browser Companion](./browser-companion/README.md) connects Reddit, X and YouTube Easy to an existing signed-in Helium, Chrome, Edge, Brave, Chromium, Vivaldi or Opera window. On Windows, double-click `browser-companion/connect-windows.cmd` to start its local bridge and enable automatic startup; then load `browser-companion/extension` as an unpacked browser extension and enter the bridge's one-time pairing code. Once connected, the MCPs reuse your existing sign-ins and only open their own social tabs. No second social login is necessary.
 
 The paired browser is never closed or cleared. If two browsers are connected at once, the bridge refuses automated actions until you disconnect one; this avoids using the wrong account. Firefox and Safari require separate browser integrations. TikTok Easy can reuse an existing browser only when it already exposes a supported local CDP debugger; the companion's page-level debugger is not yet sufficient for its Playwright backend. Browser permission/pairing cannot be silently bypassed.
 

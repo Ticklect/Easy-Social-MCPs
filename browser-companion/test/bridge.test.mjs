@@ -54,6 +54,8 @@ test("paired companion reuses an existing browser, creates its own allowed tabs 
     assert.equal((await fetch(base + "/json/version", { headers: { ...auth, Origin: "https://attacker.example" } })).status, 403);
     const version = await (await fetch(base + "/json/version", { headers: auth })).json();
     assert.equal(version.Browser, "EasySocialCompanion/v1");
+    assert.equal(version.browserLabel, "Helium");
+    assert.equal(Object.keys(version).some((key) => key.toLowerCase() === "browser" && key !== "Browser"), false);
     const pages = await (await fetch(base + "/json/list", { headers: auth })).json();
     assert.deepEqual(pages.map((page) => page.url), [
       "https://www.reddit.com/", "https://old.reddit.com/", "https://x.com/home"]);

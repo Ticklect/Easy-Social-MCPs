@@ -77,6 +77,8 @@ test("all-in-one build packages the installer and exact released bytes for all f
     "browser-companion/package.json",
     "browser-companion/package-lock.json",
     "browser-companion/start-windows.cmd",
+    "browser-companion/connect-windows.cmd",
+    "browser-companion/connect-windows.ps1",
     "browser-companion/configure-startup-windows.ps1",
     "browser-companion/start-hidden-windows.vbs",
     "browser-companion/extension/manifest.json",

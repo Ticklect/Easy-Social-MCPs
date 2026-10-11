@@ -123,7 +123,7 @@ export function makeServer({ port = PORT, directory = stateDir(),
         const browser = selection();
         if (req.method === "GET" && requestUrl.pathname === "/json/version") {
           return returnJson(res, 200, { Browser: "EasySocialCompanion/v1",
-            browser: browser.label,
+            browserLabel: browser.label,
             webSocketDebuggerUrl: `ws://${HOST}:${portNumber()}/devtools/browser/local?key=${secret}` });
         }
         if (req.method === "GET" && (requestUrl.pathname === "/json/list" ||

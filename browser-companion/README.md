@@ -8,12 +8,12 @@ The same Manifest V3 extension is intended for **Helium**, Chrome, Edge, Brave, 
 
 ## Setup
 
-1. Install Node.js 22 or newer. On Windows, double-click `start-windows.cmd` in the extracted `browser-companion` folder; it installs missing dependencies and starts the local bridge. On macOS/Linux run `npm ci` followed by `npm start`. Leave the local server running while using the MCPs.
+1. Install Node.js 22 or newer. On Windows, double-click **`connect-windows.cmd`** in the extracted `browser-companion` folder. It installs any missing dependencies, starts the bridge in the background and sets it to start automatically when you sign in to Windows. On macOS/Linux run `npm ci` followed by `npm start`, keeping the local server running during MCP use.
 2. In your normal Helium browser, open `helium://extensions` (if unavailable, try `chrome://extensions`). Turn on **Developer mode**, choose **Load unpacked**, and select the `browser-companion/extension` folder. For Chrome, Edge, Brave and other Chromium browsers, use their extensions page and load the same folder.
-3. Click the **Easy Social Browser Companion** extension icon and paste the pairing code printed in the bridge window. The popup should report **Connected to Easy Social**. The code is stored in the local account's browser extension storage, so pairing survives restarting the bridge.
+3. Click the **Easy Social Browser Companion** extension icon and paste the one-time pairing code shown in the Windows setup window (or the bridge terminal on macOS/Linux). The popup should report **Connected to Easy Social**. The code is stored in the local account's browser extension storage, so pairing survives restarting the bridge.
 4. Start Reddit Easy, X Easy or YouTube Easy in Chat On Steroids and use their normal login/status tools. The MCPs automatically discover the paired companion and use the same browser profile. The bridge also exposes all existing approved social-site tabs, but each plugin must explicitly choose an existing tab and verify its login state; older plugin builds may still open their own new social tab. Set `EASY_SOCIAL_BROWSER_MODE=existing` in their MCP environment if you want to forbid the separate-profile fallback when the companion has never been paired.
 
-Once paired, the extension retries automatically at startup and every 30 seconds if the local bridge is temporarily unavailable. The popup also has a **Retry connection** button; no new pairing code is needed. To have the bridge start automatically whenever you sign in to **Windows**, enable the optional, per-user Startup shortcut once from PowerShell while in `browser-companion`:
+Once paired, the extension retries automatically at startup and every 30 seconds if the local bridge is temporarily unavailable. The popup also has a **Retry connection** button; no new pairing code is needed. `connect-windows.cmd` enables Windows startup automatically. If you instead use the older `start-windows.cmd`, you can enable startup manually with:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\configure-startup-windows.ps1 -Action Enable
