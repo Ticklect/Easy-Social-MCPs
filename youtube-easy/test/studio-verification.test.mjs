@@ -150,6 +150,134 @@ test("Studio adapter accepts a verified 24-character UC channel ID for the direc
   assert.equal(navigated, `https://studio.youtube.com/channel/${channelId}/videos/upload`);
 });
 
+test("upload selector wait observes late DOM readiness and disconnects without redundant CDP requests", async () => {
+  let mounted = false;
+  let evaluations = 0;
+  let checks = 0;
+  const observers = new Set();
+  const document = {
+    documentElement: {},
+    querySelector(selector) {
+      assert.equal(selector, "#upload-input");
+      checks++;
+      return mounted ? { type: "file" } : null;
+    },
+  };
+  class Observer {
+    constructor(callback) { this.callback = callback; }
+    observe() { observers.add(this); }
+    disconnect() { observers.delete(this); }
+  }
+  const client = {
+    async evaluate(script) {
+      evaluations++;
+      return await new Function("document", "MutationObserver", "setTimeout", "clearTimeout", `return (${script})`)(
+        document, Observer, setTimeout, clearTimeout);
+    },
+  };
+  const timer = setTimeout(() => {
+    mounted = true;
+    for (const observer of [...observers]) observer.callback([{ type: "childList" }]);
+  }, 45);
+  try {
+    const result = await new StudioAdapter({ client }).waitFor('Boolean(document.querySelector("#upload-input"))', "upload input");
+    assert.equal(result, true);
+    assert.equal(evaluations, 1, "one pending CDP evaluation should observe the ready element");
+    assert.ok(checks >= 2, "must check both before and after observer subscription");
+    assert.equal(observers.size, 0);
+  } finally { clearTimeout(timer); }
+});
+
+test("selector wait respects its deadline and leaves no pending observer", async () => {
+  const observers = new Set();
+  const document = { documentElement: {}, querySelector: () => null };
+  class Observer {
+    constructor(callback) { this.callback = callback; }
+    observe() { observers.add(this); }
+    disconnect() { observers.delete(this); }
+  }
+  const client = {
+    async evaluate(script) {
+      return await new Function("document", "MutationObserver", "setTimeout", "clearTimeout", `return (${script})`)(
+        document, Observer, setTimeout, clearTimeout);
+    },
+  };
+  const started = Date.now();
+  await assert.rejects(() => new StudioAdapter({ client }).waitFor('Boolean(document.querySelector("#missing"))', "missing", 70), /Timed out waiting for missing/);
+  assert.ok(Date.now() - started < 400, "bounded deadline should not stall the browser");
+  assert.equal(observers.size, 0);
+});
+
+test("selector wait fails promptly on debugger closure or a YouTube cooldown during evaluation", async () => {
+  let calls = 0;
+  const disconnected = { ws: {}, async evaluate() {
+    calls++;
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    this.ws = null;
+    throw new Error("Browser debugger connection closed.");
+  } };
+  await assert.rejects(() => new StudioAdapter({ client: disconnected }).waitFor("Boolean(false)", "input"), /connection closed/);
+  assert.equal(calls, 1, "no retry after debugger disconnect");
+
+  const cooldown = new Error("YouTube returned HTTP 429");
+  const throttled = { youtubeThrottle: null, async evaluate() {
+    this.youtubeThrottle = cooldown;
+    return true;
+  } };
+  await assert.rejects(() => new StudioAdapter({ client: throttled }).waitFor("Boolean(true)", "input"), (error) => error === cooldown);
+});
+
+test("a pending DOM selector wait reports a mid-flight 429 and cleans its observer", async () => {
+  const observers = new Set();
+  const document = { documentElement: {}, querySelector: () => null };
+  class Observer {
+    constructor(callback) { this.callback = callback; }
+    observe() { observers.add(this); }
+    disconnect() { observers.delete(this); }
+  }
+  const throttle = new Error("HTTP 429: shared cooldown");
+  const client = {
+    youtubeThrottle: null,
+    async evaluate(script) {
+      return await new Function("document", "MutationObserver", "setTimeout", "clearTimeout", `return (${script})`)(
+        document, Observer, setTimeout, clearTimeout);
+    },
+  };
+  const timer = setTimeout(() => { client.youtubeThrottle = throttle; }, 40);
+  const started = Date.now();
+  try {
+    await assert.rejects(() => new StudioAdapter({ client }).waitFor('Boolean(document.querySelector("#upload-input"))', "input"), (error) => error === throttle);
+    assert.ok(Date.now() - started < 600, "bounded evaluation must notice cooldown promptly");
+    assert.equal(observers.size, 0);
+  } finally { clearTimeout(timer); }
+});
+
+test("heavy unrelated DOM mutations coalesce selector scans and never mark an absent control ready", async () => {
+  let evaluations = 0;
+  let checked = 0;
+  const observers = new Set();
+  const document = { documentElement: {}, querySelector() { checked++; return null; } };
+  class Observer {
+    constructor(callback) { this.callback = callback; }
+    observe() { observers.add(this); }
+    disconnect() { observers.delete(this); }
+  }
+  const client = { async evaluate(script) {
+    evaluations++;
+    return await new Function("document", "MutationObserver", "setTimeout", "clearTimeout", `return (${script})`)(
+      document, Observer, setTimeout, clearTimeout);
+  } };
+  const changes = setInterval(() => {
+    for (let i = 0; i < 30; i++) for (const observer of [...observers]) observer.callback([{ type: "attributes" }]);
+  }, 1);
+  try {
+    await assert.rejects(() => new StudioAdapter({ client }).waitFor('Boolean(document.querySelector("#not-ready"))', "not ready", 90), /Timed out/);
+    assert.equal(observers.size, 0);
+    assert.ok(checked < 20, `mutation storm must not trigger unbounded selector scans (${checked})`);
+    assert.ok(evaluations <= 2, `runtime evaluations should be bounded (${evaluations})`);
+  } finally { clearInterval(changes); }
+});
+
 test("thumbnail and schedule commits reuse the same fail-closed edit gate", async () => {
   let saves = 0;
   let state = { thumbnailFileName: "thumb.png", visibility: "private" };

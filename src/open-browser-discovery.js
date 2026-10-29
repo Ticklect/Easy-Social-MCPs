@@ -69,23 +69,36 @@ export async function discoverAlreadyOpenSocialBrowser({
   allowed,
   validateWebSocket,
 } = {}) {
-  const eligible = [];
-  for (const port of [...new Set(ports || [])].slice(0, 32)) {
-    if (!Number.isInteger(port) || port < 1 || port > 65535) continue;
-    const base = `http://127.0.0.1:${port}`;
-    const info = await request(`${base}/json/version`);
-    try { validateWebSocket(info?.webSocketDebuggerUrl, port); }
-    catch { continue; }
-    const tabs = await request(`${base}/json/list`);
-    if (!Array.isArray(tabs)) continue;
-    if (tabs.some((tab) => {
-      if (tab?.type !== "page" || !tab.webSocketDebuggerUrl) return false;
+  const candidates = [...new Set(ports || [])].slice(0, 32)
+    .filter((port) => Number.isInteger(port) && port >= 1 && port <= 65535);
+  const matches = Array(candidates.length).fill(false);
+  let next = 0;
+  // Local DevTools discovery is read-only; independent candidate ports can be
+  // inspected concurrently. Cap in-flight probes to avoid flooding browsers,
+  // and ALWAYS finish checking every port before selecting a single identity.
+  async function inspect() {
+    for (;;) {
+      const index = next++;
+      if (index >= candidates.length) return;
+      const port = candidates[index];
+      const base = `http://127.0.0.1:${port}`;
       try {
-        validateWebSocket(tab.webSocketDebuggerUrl, port);
-        return allowed(tab.url);
-      } catch { return false; }
-    })) eligible.push(port);
+        const info = await request(`${base}/json/version`);
+        validateWebSocket(info?.webSocketDebuggerUrl, port);
+        const tabs = await request(`${base}/json/list`);
+        if (!Array.isArray(tabs)) continue;
+        matches[index] = tabs.some((tab) => {
+          if (tab?.type !== "page" || !tab.webSocketDebuggerUrl) return false;
+          try {
+            validateWebSocket(tab.webSocketDebuggerUrl, port);
+            return allowed(tab.url);
+          } catch { return false; }
+        });
+      } catch { /* A failed local port is not proof of a signed-in browser. */ }
+    }
   }
+  await Promise.all(Array.from({ length: Math.min(8, candidates.length) }, () => inspect()));
+  const eligible = candidates.filter((_, index) => matches[index]);
   if (eligible.length > 1) {
     throw new Error("Multiple existing Chromium browsers have this social site open. Select the intended browser with the Easy Social Browser Companion or EASY_SOCIAL_BROWSER_DEBUG_PORT.");
   }

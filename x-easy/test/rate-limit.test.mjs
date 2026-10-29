@@ -115,6 +115,8 @@ test("minimum write gap is measured just before click, not tool invocation", asy
     assert.ok(at[i] >= earliestNextAttempt,
       `Write ${i} occurred before the previously persisted deadline: ${at[i]} < ${earliestNextAttempt}`);
     earliestNextAttempt = JSON.parse(fs.readFileSync(accountStateFile, "utf8")).nextWriteAt;
+    assert.ok(earliestNextAttempt >= at[i] + base.minGapMs,
+      `The next write must be paced from the observed click, not earlier filesystem persistence: ${earliestNextAttempt} < ${at[i] + base.minGapMs}`);
   }
   assert.ok(at[1] - at[0] >= 100, String(at));
   assert.ok(at[2] - at[1] >= 100, String(at));

@@ -97,7 +97,8 @@ const sources = [
   ...["README.md", "server.mjs", "package.json", "package-lock.json", "start-windows.cmd", "connect-windows.cmd", "connect-windows.ps1", "configure-startup-windows.ps1", "start-hidden-windows.vbs",
     "extension/manifest.json", "extension/background.js",
     "extension/popup.html", "extension/popup.js",
-    "test/bridge.test.mjs", "test/extension.test.mjs", "test/plugin-integration.test.mjs"].map((name) => [
+    "test/bridge.test.mjs", "test/bridge-account-switch.test.mjs", "test/extension.test.mjs", "test/lifecycle.test.mjs", "test/plugin-integration.test.mjs", "test/reconnect.test.mjs",
+    "scripts/bench-lifecycle.mjs"].map((name) => [
       `browser-companion/${name}`,
       path.join(repoRoot, "browser-companion", name), true,
     ]),

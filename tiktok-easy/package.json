@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check patch-upstream.mjs && node --check scripts/package-release.mjs && node --check scripts/build-v0.1.2.mjs && node --check scripts/patch-existing-browser.mjs && node --check scripts/build-v0.1.3.mjs && node --check scripts/patch-auto-discovery.mjs && node --check scripts/build-v0.1.4.mjs && node --check scripts/patch-direct-post.mjs && node --check scripts/build-v0.1.5.mjs",
+    "check": "node --check patch-upstream.mjs && node --check scripts/package-release.mjs && node --check scripts/build-v0.1.2.mjs && node --check scripts/patch-existing-browser.mjs && node --check scripts/build-v0.1.3.mjs && node --check scripts/patch-auto-discovery.mjs && node --check scripts/build-v0.1.4.mjs && node --check scripts/patch-direct-post.mjs && node --check scripts/build-v0.1.5.mjs && node --check scripts/patch-discovery-latency.mjs && node --check scripts/build-v0.1.6.mjs && node --check scripts/bench-browser-discovery.mjs && node --check scripts/bench-first-post-discovery.mjs && node --check scripts/bench-profile-identity.mjs",
     "test": "node --test test/*.test.mjs"
   }
 }

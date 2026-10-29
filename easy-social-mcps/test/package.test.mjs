@@ -86,8 +86,12 @@ test("all-in-one build packages the installer and exact released bytes for all f
     "browser-companion/extension/popup.html",
     "browser-companion/extension/popup.js",
     "browser-companion/test/bridge.test.mjs",
+    "browser-companion/test/bridge-account-switch.test.mjs",
     "browser-companion/test/extension.test.mjs",
+    "browser-companion/test/lifecycle.test.mjs",
     "browser-companion/test/plugin-integration.test.mjs",
+    "browser-companion/test/reconnect.test.mjs",
+    "browser-companion/scripts/bench-lifecycle.mjs",
     ...expectedBundleSources.keys(),
   ].sort());
   const guide = entries.get("README.md").toString("utf8");

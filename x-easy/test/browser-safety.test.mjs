@@ -4,8 +4,28 @@ import fs from "node:fs";
 import path from "node:path";
 import vm from "node:vm";
 import { fileURLToPath } from "node:url";
+import { discoverAlreadyOpenSocialBrowser } from "../src/open-browser-discovery.js";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
+
+test("X discovery rejects two eligible signed-in browsers after checking every local candidate", async () => {
+  const ports = [42001, 42002, 42003];
+  let requests = 0;
+  await assert.rejects(discoverAlreadyOpenSocialBrowser({
+    ports,
+    request: async (href) => {
+      requests++;
+      const url = new URL(href);
+      if (url.port === "42003") await new Promise((resolve) => setImmediate(resolve));
+      const webSocketDebuggerUrl = `ws://127.0.0.1:${url.port}/devtools/page/x`;
+      return url.pathname === "/json/version" ? { webSocketDebuggerUrl } : [{ type: "page", webSocketDebuggerUrl,
+        url: url.port === "42002" ? "https://unrelated.example/" : "https://x.com/home" }];
+    },
+    validateWebSocket: (ws, port) => { if (!ws.startsWith(`ws://127.0.0.1:${port}/`)) throw new Error("Spoofed debugger"); },
+    allowed: (url) => url === "https://x.com/home",
+  }), /Multiple existing Chromium browsers/);
+  assert.equal(requests, 6);
+});
 const runtime = fs.readFileSync(path.join(root, "src", "index.js"), "utf8");
 
 const sessionTemplate = /const X_SESSION_SCRIPT = (`[\s\S]*?`);/.exec(runtime)?.[1];
@@ -138,7 +158,7 @@ class FakeWebSocket {
 
 function fakeClient(noteHttpResponse) {
   const construct = new Function(
-    "WebSocket", "validateLocalDebuggerWs", "parseXHttpsUrl", "noteHttpResponse", "appDir",
+    "WebSocket", "validateLocalDebuggerWs", "parseXHttpsUrl", "noteHttpResponse", "appDir", "CDP_COMMAND_TIMEOUT_MS",
     `return (${classSource});`,
   );
   return new (construct(
@@ -150,7 +170,7 @@ function fakeClient(noteHttpResponse) {
       }
       return parsed;
     },
-    noteHttpResponse, "/test-inert-app-data",
+    noteHttpResponse, "/test-inert-app-data", 30_000,
   ))("ws://127.0.0.1:43111/devtools/page/one", 43111);
 }
 

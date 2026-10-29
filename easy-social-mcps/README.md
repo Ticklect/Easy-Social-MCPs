@@ -2,10 +2,10 @@
 
 This archive contains the Easy MCP Installer and all four ready-to-use bundles:
 
-- Reddit Easy v0.3.5
-- X Easy v0.1.4
-- TikTok Easy v0.1.5
-- YouTube Easy v0.1.4
+- Reddit Easy v0.3.6
+- X Easy v0.1.5
+- TikTok Easy v0.1.6
+- YouTube Easy v0.1.5
 
 It requires Node.js 22 or newer. It does not run `npm install`.
 
@@ -22,9 +22,9 @@ On Windows, Reddit, X, YouTube and TikTok also scan for compatible already-runni
 Extract the ZIP, open a terminal in the extracted directory, and run one command:
 
 ```text
-node install-easy-mcp.mjs --host codex reddit-easy-v0.3.5.mcpb x-easy-v0.1.4.mcpb tiktok-easy-v0.1.5.mcpb youtube-easy-v0.1.4.mcpb
-node install-easy-mcp.mjs --host claude reddit-easy-v0.3.5.mcpb x-easy-v0.1.4.mcpb tiktok-easy-v0.1.5.mcpb youtube-easy-v0.1.4.mcpb
-node install-easy-mcp.mjs --host both reddit-easy-v0.3.5.mcpb x-easy-v0.1.4.mcpb tiktok-easy-v0.1.5.mcpb youtube-easy-v0.1.4.mcpb
+node install-easy-mcp.mjs --host codex reddit-easy-v0.3.6.mcpb x-easy-v0.1.5.mcpb tiktok-easy-v0.1.6.mcpb youtube-easy-v0.1.5.mcpb
+node install-easy-mcp.mjs --host claude reddit-easy-v0.3.6.mcpb x-easy-v0.1.5.mcpb tiktok-easy-v0.1.6.mcpb youtube-easy-v0.1.5.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.6.mcpb x-easy-v0.1.5.mcpb tiktok-easy-v0.1.6.mcpb youtube-easy-v0.1.5.mcpb
 ```
 
 Use `--host codex`, `--host claude`, or `--host both`. Restart the selected client after installation. Once your browser companion is paired, prompts such as “Post this to r/SideProject using Reddit Easy” or “Post this on X using X Easy” work without a separate login command.

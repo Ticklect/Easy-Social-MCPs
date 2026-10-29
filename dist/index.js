@@ -6,11 +6,12 @@ import { spawn } from "node:child_process";
 import { coordinatedRedditRequest, coordinatedWrite, formatWriteOutcome, KnownWriteFailure, withLease } from "./coordination.js";
 import { discoverAlreadyOpenSocialBrowser, listAlreadyOpenDebuggers } from "./open-browser-discovery.js";
 
-const VERSION = "0.3.5";
+const VERSION = "0.3.6";
 const IS_WIN = process.platform === "win32";
 const IS_MAC = process.platform === "darwin";
 const MAX_STDIO_BUFFER = 2 * 1024 * 1024;
 const REQUEST_TIMEOUT_MS = 15_000;
+const CDP_COMMAND_TIMEOUT_MS = 30_000;
 const WRITE_GAP_MS = 3_500;
 const DUPLICATE_WINDOW_MS = 10 * 60 * 1000;
 
@@ -313,8 +314,23 @@ class CdpClient {
   constructor(wsUrl, expectedPort) {
     this.wsUrl = validateLocalDebuggerWs(wsUrl, expectedPort);
     this.ws = null;
+    this.connectingSocket = null;
+    this.transportFailure = null;
     this.id = 1;
     this.pending = new Map();
+  }
+
+  fail(error) {
+    if (!this.transportFailure) this.transportFailure = error;
+    const socket = this.ws || this.connectingSocket;
+    this.ws = null;
+    this.connectingSocket = null;
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(this.transportFailure);
+    }
+    this.pending.clear();
+    try { socket?.close(); } catch {}
   }
 
   async connect() {
@@ -323,37 +339,67 @@ class CdpClient {
     }
     await new Promise((resolve, reject) => {
       const ws = new WebSocket(this.wsUrl);
-      const timer = setTimeout(() => reject(new Error("Timed out connecting to the local browser debugger.")), 5_000);
-      ws.addEventListener("open", () => { clearTimeout(timer); this.ws = ws; resolve(); });
-      ws.addEventListener("error", () => { clearTimeout(timer); reject(new Error("Local browser debugger connection failed.")); });
+      this.connectingSocket = ws;
+      let settled = false;
+      const abortConnect = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.fail(error);
+        reject(error);
+      };
+      const timer = setTimeout(() => abortConnect(new Error("Timed out connecting to the local browser debugger.")), 5_000);
+      ws.addEventListener("open", () => {
+        if (settled) { try { ws.close(); } catch {} return; }
+        settled = true;
+        clearTimeout(timer);
+        this.connectingSocket = null;
+        this.ws = ws;
+        resolve();
+      });
+      ws.addEventListener("error", () => {
+        const error = new Error("Local browser debugger connection failed.");
+        if (!settled) abortConnect(error);
+        else this.fail(error);
+      });
       ws.addEventListener("message", (event) => {
+        if (this.ws !== ws || this.transportFailure) return;
         let msg;
         try { msg = JSON.parse(event.data); } catch { return; }
         if (!msg.id) return;
         const pending = this.pending.get(msg.id);
         if (!pending) return;
         this.pending.delete(msg.id);
+        clearTimeout(pending.timer);
         if (msg.error) pending.reject(new Error(msg.error.message || "Browser debugger error"));
         else pending.resolve(msg.result);
       });
       ws.addEventListener("close", () => {
-        for (const pending of this.pending.values()) pending.reject(new Error("Browser debugger connection closed."));
-        this.pending.clear();
+        if (!settled) abortConnect(new Error("Browser debugger connection closed before connecting."));
+        else if (this.ws === ws) this.fail(new Error("Browser debugger connection closed."));
       });
     });
   }
 
   send(method, params = {}) {
+    if (this.transportFailure) throw this.transportFailure;
     if (!this.ws) throw new Error("Browser debugger WebSocket is not connected.");
     const id = this.id++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify({ id, method, params }));
+      const timer = setTimeout(() => this.fail(
+        new Error(`Browser debugger command ${method} timed out after ${CDP_COMMAND_TIMEOUT_MS}ms; its outcome is unknown.`)
+      ), CDP_COMMAND_TIMEOUT_MS);
+      this.pending.set(id, { resolve, reject, timer });
+      try {
+        this.ws.send(JSON.stringify({ id, method, params }));
+      } catch (error) {
+        this.fail(new Error(`Browser debugger command ${method} could not be sent: ${error?.message || String(error)}`));
+      }
     });
   }
 
   close() {
-    try { this.ws?.close(); } catch {}
+    this.fail(new Error("Browser debugger connection closed."));
   }
 }
 
@@ -408,9 +454,15 @@ async function getPageClient() {
 
   const cdp = new CdpClient(page.webSocketDebuggerUrl, port);
   await cdp.connect();
-  await cdp.send("Page.enable");
-  await cdp.send("Runtime.enable");
-  return cdp;
+  try {
+    // Independent CDP domains can be enabled on the same WebSocket together.
+    // Wait for both acknowledgements before any tool evaluates page content.
+    await Promise.all([cdp.send("Page.enable"), cdp.send("Runtime.enable")]);
+    return cdp;
+  } catch (error) {
+    cdp.close();
+    throw error;
+  }
 }
 
 async function evaluate(cdp, expression) {

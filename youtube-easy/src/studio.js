@@ -131,6 +131,19 @@ export class StudioAdapter {
 
   async goto(url) {
     const safe = parseGoogleYoutubeUrl(url).href;
+    if (this.browser && this.client.initialNavigationUrl === safe) {
+      // browser.page() already navigated to this URL. Confirm the live page
+      // still matches before skipping one redundant reload; a changed tab,
+      // failed evaluation, or cooldown must never be hidden by cached state.
+      this.client.initialNavigationUrl = null;
+      if (this.client.youtubeThrottle) throw this.client.youtubeThrottle;
+      const state = await this.client.evaluate("({ready:document.readyState,href:location.href})").catch(() => null);
+      if (this.client.youtubeThrottle) throw this.client.youtubeThrottle;
+      if (state && ["interactive", "complete"].includes(state.ready) && state.href === safe) {
+        parseGoogleYoutubeUrl(state.href);
+        return state.href;
+      }
+    }
     if (this.browser?.navigate) return await this.browser.navigate(this.client, safe);
     if (!this.client.send) throw new Error("This Studio adapter cannot navigate without a browser or CDP Page client.");
     await this.client.send("Page.navigate", { url: safe });
@@ -151,10 +164,57 @@ export class StudioAdapter {
     const deadline = Date.now() + timeoutMs;
     while (Date.now() < deadline) {
       if (this.client.youtubeThrottle) throw this.client.youtubeThrottle;
-      const result = await this.client.evaluate(expression).catch(() => null);
+      // Let the current Studio document notify us when the selector appears.
+      // Each evaluation is bounded to 250 ms so an interrupted navigation,
+      // closed CDP socket, or YouTube 429 is handled without a long browser
+      // promise or a polling timer running indefinitely in the page.
+      const duration = Math.min(250, Math.max(1, deadline - Date.now()));
+      const started = Date.now();
+      const probe = `(() => new Promise(resolve => {
+        let observer, scheduled, timer, finished = false;
+        const check = () => (${expression});
+        const finish = ready => {
+          if (finished) return;
+          finished = true;
+          observer?.disconnect();
+          clearTimeout(scheduled);
+          clearTimeout(timer);
+          resolve(ready);
+        };
+        try {
+          const first = check();
+          if (first) return finish(first);
+          // Keep one browser-side check per 25 ms even if Studio is rapidly
+          // mutating its DOM. Recheck after subscribing to close the race.
+          if (typeof MutationObserver === 'function') {
+            observer = new MutationObserver(() => {
+              if (scheduled !== undefined) return;
+              scheduled = setTimeout(() => {
+                scheduled = undefined;
+                try { const value = check(); if (value) finish(value); } catch { finish(false); }
+              }, 25);
+            });
+            observer.observe(document.documentElement || document, { childList: true, subtree: true, attributes: true });
+            const latest = check();
+            if (latest) return finish(latest);
+          }
+          timer = setTimeout(() => finish(false), ${duration});
+        } catch { finish(false); }
+      }))()`;
+      let result;
+      try { result = await this.client.evaluate(probe); }
+      catch (error) {
+        if (this.client.youtubeThrottle) throw this.client.youtubeThrottle;
+        // Closing the debugger must cancel a long wait promptly.
+        if ("ws" in this.client && !this.client.ws) throw error;
+        await this.sleep(250);
+        continue;
+      }
       if (this.client.youtubeThrottle) throw this.client.youtubeThrottle;
       if (result) return result;
-      await this.sleep(250);
+      // A malformed selector or unavailable MutationObserver may fail fast;
+      // still enforce the original bounded polling cadence.
+      if (Date.now() - started < duration) await this.sleep(duration - (Date.now() - started));
     }
     throw new Error(`Timed out waiting for ${label}.`);
   }
