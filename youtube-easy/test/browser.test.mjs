@@ -10,6 +10,7 @@ import {
   YouTubeBrowser,
   CdpClient,
 } from "../src/browser.js";
+import { StudioAdapter } from "../src/studio.js";
 
 test("browser detection covers Helium, Chrome, Edge, and Chromium on supported platforms", () => {
   const winEnv = {
@@ -85,6 +86,71 @@ test("an approved reusable tab is still navigated to the tool's requested page",
   client.close();
   assert.equal(current, "https://studio.youtube.com/");
   assert.equal(commands.filter((item) => item.method === "Page.navigate").length, 1);
+});
+
+test("a freshly verified Studio page skips only its first redundant same-URL reload", async () => {
+  let current = "https://studio.youtube.com/";
+  const commands = [];
+  class Socket {
+    constructor() { this.handlers = new Map(); queueMicrotask(() => this.emit("open")); }
+    addEventListener(event, handler) { this.handlers.set(event, handler); }
+    emit(event, data = {}) { this.handlers.get(event)?.(data); }
+    send(raw) {
+      const request = JSON.parse(raw);
+      commands.push(request.method);
+      if (request.method === "Page.navigate") current = request.params.url;
+      const result = request.method === "Runtime.evaluate"
+        ? { result: { value: { ready: "complete", href: current } } } : {};
+      queueMicrotask(() => this.emit("message", { data: JSON.stringify({ id: request.id, result }) }));
+    }
+    close() { this.emit("close"); }
+  }
+  const browser = new YouTubeBrowser({
+    stateDir: fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-duplicate-nav-")),
+    WebSocketClass: Socket,
+  });
+  browser.start = async () => 43117;
+  browser.listTargets = async () => [{ type: "page", url: current,
+    webSocketDebuggerUrl: "ws://127.0.0.1:43117/devtools/page/one" }];
+  const client = await browser.page();
+  const studio = new StudioAdapter({ client, browser });
+  assert.equal(await studio.goto("https://studio.youtube.com/"), "https://studio.youtube.com/");
+  assert.equal(commands.filter((name) => name === "Page.navigate").length, 1);
+  await studio.goto("https://studio.youtube.com/");
+  assert.equal(commands.filter((name) => name === "Page.navigate").length, 2,
+    "a later explicit reload must still navigate");
+  client.close();
+});
+
+test("the first Studio goto reloads when the page changed after browser setup", async () => {
+  let current = "https://studio.youtube.com/";
+  const navigations = [];
+  class Socket {
+    constructor() { this.handlers = new Map(); queueMicrotask(() => this.emit("open")); }
+    addEventListener(event, handler) { this.handlers.set(event, handler); }
+    emit(event, data = {}) { this.handlers.get(event)?.(data); }
+    send(raw) {
+      const request = JSON.parse(raw);
+      if (request.method === "Page.navigate") { current = request.params.url; navigations.push(current); }
+      const result = request.method === "Runtime.evaluate"
+        ? { result: { value: { ready: "complete", href: current } } } : {};
+      queueMicrotask(() => this.emit("message", { data: JSON.stringify({ id: request.id, result }) }));
+    }
+    close() { this.emit("close"); }
+  }
+  const browser = new YouTubeBrowser({
+    stateDir: fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-changed-nav-")),
+    WebSocketClass: Socket,
+  });
+  browser.start = async () => 43117;
+  browser.listTargets = async () => [{ type: "page", url: current,
+    webSocketDebuggerUrl: "ws://127.0.0.1:43117/devtools/page/one" }];
+  const client = await browser.page();
+  current = "https://www.youtube.com/feed/subscriptions";
+  const studio = new StudioAdapter({ client, browser });
+  assert.equal(await studio.goto("https://studio.youtube.com/"), "https://studio.youtube.com/");
+  assert.equal(navigations.length, 2, "unexpected live tab navigation must be repaired");
+  client.close();
 });
 
 test("dedicated browser launch binds loopback, uses an ephemeral port, and isolates the profile", async () => {
@@ -235,4 +301,133 @@ test("CDP refuses malformed generated browser scripts before sending them", asyn
   client.send = async () => { sends++; return {}; };
   await assert.rejects(() => client.evaluate("(() => { const broken = ; })()"), /invalid browser script/i);
   assert.equal(sends, 0);
+});
+
+test("CDP commands time out and clear their pending receipt when a live debugger never answers", async () => {
+  let opened;
+  class SilentWebSocket {
+    constructor() { this.listeners = new Map(); opened = this; queueMicrotask(() => this.emit("open")); }
+    addEventListener(name, handler) { this.listeners.set(name, handler); }
+    emit(name, event = {}) { this.listeners.get(name)?.(event); }
+    send() { /* Keep the socket live but do not answer. */ }
+    close() { this.emit("close"); }
+  }
+  const client = new CdpClient("ws://127.0.0.1:43117/devtools/page/one", 43117,
+    { WebSocketClass: SilentWebSocket, commandTimeoutMs: 20 });
+  await client.connect();
+  await assert.rejects(client.send("Runtime.evaluate"), /command timed out: Runtime\.evaluate/);
+  assert.equal(client.pending.size, 0);
+  // An old late reply cannot resolve an unrelated next command.
+  opened.emit("message", { data: JSON.stringify({ id: 1, result: { result: { value: "late" } } }) });
+  assert.equal(client.pending.size, 0);
+  client.close();
+});
+
+test("closing a CDP connection rejects outstanding requests promptly and prevents more commands", async () => {
+  class SilentWebSocket {
+    constructor() { this.listeners = new Map(); queueMicrotask(() => this.listeners.get("open")?.({})); }
+    addEventListener(name, handler) { this.listeners.set(name, handler); }
+    send() {}
+    close() { this.listeners.get("close")?.({}); }
+  }
+  const client = new CdpClient("ws://127.0.0.1:43117/devtools/page/one", 43117,
+    { WebSocketClass: SilentWebSocket, commandTimeoutMs: 5_000 });
+  await client.connect();
+  const unresolved = client.send("Page.navigate");
+  client.close();
+  await assert.rejects(unresolved, /connection closed/);
+  assert.equal(client.pending.size, 0);
+  assert.throws(() => client.send("Page.navigate"), /not connected/);
+});
+
+test("YouTube tab setup closes the debugger when an enable command fails", async () => {
+  let closed = 0;
+  class FailedWebSocket {
+    constructor() { this.listeners = new Map(); queueMicrotask(() => this.emit("open")); }
+    addEventListener(name, handler) { this.listeners.set(name, handler); }
+    emit(name, event = {}) { this.listeners.get(name)?.(event); }
+    send(raw) {
+      const { id, method } = JSON.parse(raw);
+      queueMicrotask(() => this.emit("message", { data: JSON.stringify({ id,
+        ...(method === "Page.enable" ? { error: { message: "CDP session denied" } } : { result: {} }) }) }));
+    }
+    close() { closed++; this.emit("close"); }
+  }
+  const browser = new YouTubeBrowser({ stateDir: fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-enable-")), WebSocketClass: FailedWebSocket });
+  browser.start = async () => 43117;
+  browser.listTargets = async () => [{ id: "one", type: "page", url: "https://studio.youtube.com/", webSocketDebuggerUrl: "ws://127.0.0.1:43117/devtools/page/one" }];
+  await assert.rejects(browser.page(), /CDP session denied/);
+  assert.equal(closed, 1);
+});
+
+test("a late close and response from an old debugger socket do not break a new connection", async () => {
+  const sockets = [];
+  class ManualSocket {
+    constructor() { this.handlers = new Map(); sockets.push(this); queueMicrotask(() => this.emit("open")); }
+    addEventListener(name, handler) { this.handlers.set(name, handler); }
+    emit(name, payload = {}) { this.handlers.get(name)?.(payload); }
+    send(raw) { this.last = JSON.parse(raw); }
+    close() { /* A real socket's close event may be delayed. */ }
+  }
+  const client = new CdpClient("ws://127.0.0.1:43117/devtools/page/one", 43117,
+    { WebSocketClass: ManualSocket, commandTimeoutMs: 200 });
+  await client.connect();
+  const oldPending = client.send("Runtime.evaluate");
+  client.close();
+  await assert.rejects(oldPending, /connection closed/);
+  await client.connect();
+  const current = client.send("Runtime.evaluate");
+  sockets[0].emit("message", { data: JSON.stringify({ id: sockets[1].last.id, result: { result: { value: "wrong-socket" } } }) });
+  sockets[0].emit("close");
+  assert.equal(client.ws, sockets[1]);
+  sockets[1].emit("message", { data: JSON.stringify({ id: sockets[1].last.id, result: { result: { value: "current" } } }) });
+  assert.deepEqual(await current, { result: { value: "current" } });
+  client.close();
+});
+
+test("concurrent debugger opens are rejected and closing during handshake prevents a zombie reconnect", async () => {
+  const sockets = [];
+  class ManualSocket {
+    constructor() { this.handlers = new Map(); sockets.push(this); }
+    addEventListener(name, handler) { this.handlers.set(name, handler); }
+    emit(name, payload = {}) { this.handlers.get(name)?.(payload); }
+    close() { this.emit("close"); }
+  }
+  const client = new CdpClient("ws://127.0.0.1:43117/devtools/page/one", 43117, { WebSocketClass: ManualSocket });
+  const first = client.connect();
+  await assert.rejects(client.connect(), /already active or opening/);
+  assert.equal(sockets.length, 1);
+  client.close();
+  await assert.rejects(first, /closed while opening/);
+  sockets[0].emit("open");
+  assert.equal(client.ws, null);
+  const next = client.connect();
+  sockets[1].emit("open");
+  await next;
+  assert.equal(client.ws, sockets[1]);
+  client.close();
+});
+
+test("CDP domain setup sends independent enables together but navigates only after every acknowledgement", async () => {
+  const issued = [];
+  class OrderedSocket {
+    constructor() { this.handlers = new Map(); queueMicrotask(() => this.emit("open")); }
+    addEventListener(name, handler) { this.handlers.set(name, handler); }
+    emit(name, payload = {}) { this.handlers.get(name)?.(payload); }
+    send(raw) {
+      const command = JSON.parse(raw);
+      issued.push(command.method);
+      const response = () => this.emit("message", { data: JSON.stringify({ id: command.id,
+        result: command.method === "Runtime.evaluate" ? { result: { value: { ready: "complete", href: "https://studio.youtube.com/" } } } : {} }) });
+      setTimeout(response, command.method === "DOM.enable" ? 20 : 0);
+    }
+    close() { this.emit("close"); }
+  }
+  const browser = new YouTubeBrowser({ stateDir: fs.mkdtempSync(path.join(os.tmpdir(), "youtube-easy-batch-")), WebSocketClass: OrderedSocket });
+  browser.start = async () => 43117;
+  browser.listTargets = async () => [{ type: "page", url: "https://studio.youtube.com/", webSocketDebuggerUrl: "ws://127.0.0.1:43117/devtools/page/one" }];
+  const client = await browser.page();
+  client.close();
+  assert.deepEqual(issued.slice(0, 4), ["Page.enable", "Runtime.enable", "DOM.enable", "Network.enable"]);
+  assert.equal(issued[4], "Page.navigate", "all domain acknowledgements must precede navigation");
 });

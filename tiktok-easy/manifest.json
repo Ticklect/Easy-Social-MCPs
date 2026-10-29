@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "tiktok-easy",
   "display_name": "TikTok Easy",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "description": "TikTok MCP with direct posting from the signed-in Chromium session, automatic full-CDP discovery or optional QR login.",
   "long_description": "Ask the agent to post with tiktok_post: on an accessible existing browser debugger, TikTok Easy verifies the signed-in account automatically on the first post. No login tool or copied cookies are needed. Browsers without a full debugger cannot be controlled by the tab-only companion; use tiktok_login explicitly for a dedicated QR login. Also includes scheduling, profile management and analytics.",
   "author": {

@@ -44,3 +44,32 @@ test("selects the sole debugger with an already-open matching social tab; does n
     /Multiple existing Chromium browsers/,
   );
 });
+
+test("Reddit discovery checks every candidate within an eight-request concurrency ceiling", async () => {
+  const ports = Array.from({ length: 16 }, (_, i) => 42001 + i);
+  let inflight = 0;
+  let peak = 0;
+  let calls = 0;
+  const port = await discoverAlreadyOpenSocialBrowser({
+    ports,
+    request: async (href) => {
+      calls++;
+      inflight++;
+      peak = Math.max(peak, inflight);
+      await new Promise((resolve) => setImmediate(resolve));
+      inflight--;
+      const url = new URL(href);
+      const ws = `ws://127.0.0.1:${url.port}/devtools/page/a`;
+      return url.pathname === "/json/version" ? { webSocketDebuggerUrl: ws } : [{
+        type: "page", webSocketDebuggerUrl: ws,
+        url: Number(url.port) === ports[15] ? "https://reddit.com/" : "https://other.example/",
+      }];
+    },
+    validateWebSocket: (ws, port) => { if (!ws.startsWith(`ws://127.0.0.1:${port}/`)) throw new Error("Spoofed debugger"); },
+    allowed: (url) => url === "https://reddit.com/",
+  });
+  assert.equal(port, ports[15]);
+  assert.equal(peak, 8);
+  assert.equal(inflight, 0);
+  assert.equal(calls, 32);
+});

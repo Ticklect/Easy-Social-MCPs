@@ -50,6 +50,30 @@ test("all reads share a minimum dispatch gap, including concurrent calls", async
   }
 });
 
+test("a slow or failed Reddit response never consumes the next request's pacing gap", async (t) => {
+  const root = tempRoot(t);
+  const gapMs = 80;
+  let responseEnd = 0;
+  await coordinatedRedditRequest({ root, gapMs, request: async () => {
+    await new Promise((resolve) => setTimeout(resolve, 45));
+    responseEnd = Date.now();
+    return ok;
+  } });
+  let secondDispatch = 0;
+  await coordinatedRedditRequest({ root, gapMs, request: async () => { secondDispatch = Date.now(); return ok; } });
+  assert.ok(secondDispatch - responseEnd >= 68, `Slow response consumed the request gap: ${secondDispatch - responseEnd}ms`);
+
+  let errorAt = 0;
+  await assert.rejects(coordinatedRedditRequest({ root, gapMs, request: async () => {
+    await new Promise((resolve) => setTimeout(resolve, 45));
+    errorAt = Date.now();
+    throw new Error("Connection interrupted after dispatch");
+  } }), /Connection interrupted/);
+  let afterError = 0;
+  await coordinatedRedditRequest({ root, gapMs, request: async () => { afterError = Date.now(); return ok; } });
+  assert.ok(afterError - errorAt >= 68, `Failed response consumed the request gap: ${afterError - errorAt}ms`);
+});
+
 test("write spacing is enforced at actual HTTP dispatch rather than before preparation", async (t) => {
   const root = tempRoot(t);
   const dispatches = [];

@@ -110,11 +110,13 @@ async function fetchJson(fetchFn, url, options = {}, timeoutMs = 2_500) {
 }
 
 export class CdpClient {
-  constructor(wsUrl, expectedPort, { WebSocketClass = globalThis.WebSocket } = {}) {
+  constructor(wsUrl, expectedPort, { WebSocketClass = globalThis.WebSocket, commandTimeoutMs = 30_000 } = {}) {
     this.wsUrl = validateDebuggerWs(wsUrl, expectedPort);
     this.expectedPort = expectedPort;
     this.WebSocketClass = WebSocketClass;
+    this.commandTimeoutMs = commandTimeoutMs;
     this.ws = null;
+    this.connecting = null;
     this.nextId = 1;
     this.pending = new Map();
     this.listeners = new Map();
@@ -122,25 +124,43 @@ export class CdpClient {
 
   async connect() {
     if (typeof this.WebSocketClass !== "function") throw new Error("YouTube Easy requires Node.js 22 or newer with WebSocket support.");
+    if (this.ws || this.connecting) throw new Error("Browser debugger connection is already active or opening.");
     await new Promise((resolve, reject) => {
       const ws = new this.WebSocketClass(this.wsUrl);
-      const timer = setTimeout(() => reject(new Error("Timed out connecting to the local browser debugger.")), 5_000);
-      ws.addEventListener("open", () => {
+      let settled = false;
+      const fail = (message) => {
+        if (settled) return;
+        settled = true;
         clearTimeout(timer);
+        if (this.connecting === attempt) this.connecting = null;
+        try { ws.close(); } catch {}
+        reject(new Error(message));
+      };
+      const attempt = { cancel: () => fail("Browser debugger connection closed while opening.") };
+      this.connecting = attempt;
+      const timer = setTimeout(() => fail("Timed out connecting to the local browser debugger."), 5_000);
+      ws.addEventListener("open", () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        this.connecting = null;
         this.ws = ws;
         resolve();
       });
       ws.addEventListener("error", () => {
-        clearTimeout(timer);
-        reject(new Error("Local browser debugger connection failed."));
+        if (!settled) fail("Local browser debugger connection failed.");
+        else if (this.ws === ws) this.close();
       });
       ws.addEventListener("message", (event) => {
+        // A prior socket may emit a queued event after this client reconnects.
+        if (this.ws !== ws) return;
         let message;
         try { message = JSON.parse(event.data); } catch { return; }
         if (message.id) {
           const pending = this.pending.get(message.id);
           if (!pending) return;
           this.pending.delete(message.id);
+          clearTimeout(pending.timer);
           if (message.error) pending.reject(new Error(message.error.message || "Browser debugger error."));
           else pending.resolve(message.result || {});
           return;
@@ -149,8 +169,8 @@ export class CdpClient {
         if (handlers) for (const handler of handlers) handler(message.params || {});
       });
       ws.addEventListener("close", () => {
-        for (const pending of this.pending.values()) pending.reject(new Error("Browser debugger connection closed."));
-        this.pending.clear();
+        if (!settled) fail("Browser debugger connection closed before opening.");
+        else if (this.ws === ws) this.close();
       });
     });
   }
@@ -160,8 +180,17 @@ export class CdpClient {
     if (this.youtubeThrottle && method !== "Browser.close") throw this.youtubeThrottle;
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
-      this.ws.send(JSON.stringify({ id, method, params }));
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(new Error(`Browser debugger command timed out: ${method}. Check the browser companion and retry only after checking whether the action completed.`));
+      }, this.commandTimeoutMs);
+      this.pending.set(id, { resolve, reject, timer });
+      try { this.ws.send(JSON.stringify({ id, method, params })); }
+      catch (error) {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        reject(new Error(`Could not send browser debugger command: ${error instanceof Error ? error.message : "Connection failed."}`));
+      }
     });
   }
 
@@ -210,7 +239,15 @@ export class CdpClient {
   }
 
   close() {
-    try { this.ws?.close(); } catch {}
+    this.connecting?.cancel();
+    const ws = this.ws;
+    this.ws = null;
+    for (const pending of this.pending.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error("Browser debugger connection closed."));
+    }
+    this.pending.clear();
+    try { ws?.close(); } catch {}
   }
 }
 
@@ -403,26 +440,34 @@ export class YouTubeBrowser {
       }
     }
     const client = new CdpClient(target.webSocketDebuggerUrl, port, { WebSocketClass: this.WebSocketClass });
-    await client.connect();
-    await client.send("Page.enable");
-    await client.send("Runtime.enable");
-    await client.send("DOM.enable");
-    await client.send("Network.enable");
-    client.on("Network.responseReceived", (event) => {
-      try {
-        const throttle = noteYouTubeResponse(this.stateDir, event);
-        if (throttle) {
-          client.youtubeThrottle ||= new Error(`YouTube returned HTTP ${throttle.status}; a shared cooldown was recorded. No automatic retry was attempted.`);
-          client.youtubeThrottle.code = "YOUTUBE_THROTTLED";
-        }
-      } catch (error) {
-        // State persistence failure must not allow more browser actions.
-        client.youtubeThrottle ||= new Error(`Cannot persist the shared YouTube cooldown: ${error.message}`);
-      }
-    });
     try {
+      await client.connect();
+      // A 429 can arrive as soon as Network.enable is sent. Install the
+      // listener first so startup cannot miss a protective cooldown.
+      client.on("Network.responseReceived", (event) => {
+        try {
+          const throttle = noteYouTubeResponse(this.stateDir, event);
+          if (throttle) {
+            client.youtubeThrottle ||= new Error(`YouTube returned HTTP ${throttle.status}; a shared cooldown was recorded. No automatic retry was attempted.`);
+            client.youtubeThrottle.code = "YOUTUBE_THROTTLED";
+          }
+        } catch (error) {
+          // State persistence failure must not allow more browser actions.
+          client.youtubeThrottle ||= new Error(`Cannot persist the shared YouTube cooldown: ${error.message}`);
+        }
+      });
+      // These four independent CDP domains can be enabled in one round trip;
+      // wait for every acknowledgement before navigating or returning a client.
+      await Promise.all([
+        client.send("Page.enable"), client.send("Runtime.enable"),
+        client.send("DOM.enable"), client.send("Network.enable"),
+      ]);
+      if (client.youtubeThrottle) throw client.youtubeThrottle;
       await this.navigate(client, safe);
       if (client.youtubeThrottle) throw client.youtubeThrottle;
+      // A StudioAdapter may immediately request this exact page again.
+      // Allow one verified reuse of this fresh navigation in the same session.
+      client.initialNavigationUrl = safe;
       return client;
     } catch (error) {
       client.close();
@@ -432,6 +477,9 @@ export class YouTubeBrowser {
 
   async navigate(client, url) {
     const safe = parseGoogleYoutubeUrl(url).href;
+    // Only the initial page load is eligible for reuse. Subsequent explicit
+    // navigation (including a same-URL refresh) must always go to the browser.
+    client.initialNavigationUrl = null;
     await client.send("Page.navigate", { url: safe });
     for (let i = 0; i < 80; i++) {
       if (client.youtubeThrottle) throw client.youtubeThrottle;

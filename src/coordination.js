@@ -244,12 +244,31 @@ export async function coordinatedRedditRequest({ root, request, gapMs = REDDIT_M
     };
     atomicJsonWrite(stateFile, dispatchState);
 
-    const response = await request();
+    let response;
+    try {
+      response = await request();
+    } catch (error) {
+      // A failed request can still have reached Reddit. Measure the next gap
+      // from when it stopped, not from a pre-dispatch filesystem timestamp.
+      const endedAt = Date.now();
+      atomicJsonWrite(stateFile, {
+        ...dispatchState, lastRequestAt: endedAt,
+        ...(write ? { lastWriteRequestAt: endedAt } : {}),
+      });
+      throw error;
+    }
     const policy = redditResponseCooldown(response);
+    const completedAt = Date.now();
     const nextState = {
       ...dispatchState,
-      cooldownUntil: Math.max(Number(state.cooldownUntil || 0), Date.now() + policy.cooldownMs),
-      nextRequestAt: Date.now() + policy.extraGapMs,
+      // The account/profile lease is held through response processing, so
+      // other processes cannot begin the next request before this is saved.
+      // Pacing from completion guarantees a minimum actual dispatch gap even
+      // when HTTP latency or synchronous disk writes are slow.
+      lastRequestAt: completedAt,
+      ...(write ? { lastWriteRequestAt: completedAt } : {}),
+      cooldownUntil: Math.max(Number(state.cooldownUntil || 0), completedAt + policy.cooldownMs),
+      nextRequestAt: completedAt + policy.extraGapMs,
     };
     atomicJsonWrite(stateFile, nextState);
     if (policy.throttled) throw new RedditCooldownError(policy.cooldownMs,

@@ -236,8 +236,17 @@ export function makeServer({ port = PORT, directory = stateDir(),
         if (!Number.isSafeInteger(msg.id)) return;
         try {
           if (!browser) throw new Error("Browser-wide debugger commands are not allowed.");
+          // A page WebSocket may outlive the unique-browser selection used
+          // when it opened. A newly connected second browser makes further
+          // commands ambiguous even on an already-open tab. Do not cache the
+          // selection or silently keep using the previously selected account.
+          if (selection() !== browser) throw new Error("Browser selection changed. Disconnect extra browser companions before continuing.");
           if (!/^(Page|Runtime|Network|DOM|Input|Emulation|Storage)\.[A-Za-z]+$/.test(msg.method || "")) throw new Error("Unsupported debugger command.");
           const value = await request(browser, "command", { tabId: Number(matched[2]), method: msg.method, params: msg.params || {} });
+          // If an additional account connected while the command was in
+          // flight, its outcome is uncertain; never acknowledge success as
+          // though the original account were still uniquely selected.
+          if (selection() !== browser) throw new Error("Browser selection changed during debugger command. Check the result before retrying.");
           if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ id: msg.id, result: value || {} }));
         } catch (err) {
           if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ id: msg.id, error: { message: err.message } }));

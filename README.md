@@ -10,8 +10,8 @@ This repository includes all four ready-to-use MCPs:
 
 | MCP | Example agent request | Download this MCP file |
 | --- | --- | --- |
-| [Reddit Easy](./README.md) | “Post this to r/SideProject using Reddit Easy” | [`reddit-easy-v0.3.5.mcpb`](./reddit-easy-v0.3.5.mcpb) |
-| [X Easy](./x-easy/README.md) | “Post this on X using X Easy” | [`x-easy-v0.1.4.mcpb`](./x-easy/x-easy-v0.1.4.mcpb) |
+| [Reddit Easy](./README.md) | “Post this to r/SideProject using Reddit Easy” | [`reddit-easy-v0.3.6.mcpb`](./reddit-easy-v0.3.6.mcpb) |
+| [X Easy](./x-easy/README.md) | “Post this on X using X Easy” | [`x-easy-v0.1.5.mcpb`](./x-easy/x-easy-v0.1.5.mcpb) |
 | [TikTok Easy](./tiktok-easy/README.md) | “Post this video using TikTok Easy” (reuses full CDP automatically) | [`tiktok-easy-v0.1.5.mcpb`](./tiktok-easy/tiktok-easy-v0.1.5.mcpb) |
 | [YouTube Easy](./youtube-easy/README.md) | “Upload this video using YouTube Easy” | [`youtube-easy-v0.1.4.mcpb`](./youtube-easy/youtube-easy-v0.1.4.mcpb) |
 
@@ -46,7 +46,7 @@ Extract the installer ZIP, place the downloaded `.mcpb` files beside `install-ea
 ```text
 node install-easy-mcp.mjs --host codex youtube-easy-v0.1.4.mcpb
 node install-easy-mcp.mjs --host claude youtube-easy-v0.1.4.mcpb
-node install-easy-mcp.mjs --host both reddit-easy-v0.3.5.mcpb x-easy-v0.1.4.mcpb tiktok-easy-v0.1.5.mcpb youtube-easy-v0.1.4.mcpb
+node install-easy-mcp.mjs --host both reddit-easy-v0.3.6.mcpb x-easy-v0.1.5.mcpb tiktok-easy-v0.1.5.mcpb youtube-easy-v0.1.4.mcpb
 ```
 
 Restart Codex or Claude Code afterward. The first command installs only into Codex, the second only into Claude Code, and `--host both` installs into both.
@@ -77,13 +77,13 @@ It supports posting and native scheduling, likes, follows, deletion, profile/ava
 
 I also built **[X Easy](./x-easy/README.md)** for X/Twitter. It reuses your connected signed-in browser to read your timeline, search, mentions, notifications and bookmarks, or explicitly post, reply, like, repost and bookmark without setting up X API credentials.
 
-[X Easy v0.1.4 bundle](./x-easy/x-easy-v0.1.4.mcpb)
+[X Easy v0.1.5 bundle](./x-easy/x-easy-v0.1.5.mcpb)
 
 > X explicitly prohibits scripting its website as a form of automation, and enforcement can include suspension. Local pacing does not make this approach authorised or guarantee account safety. Review the [X Easy security warnings](./x-easy/README.md) and use X's official API for authorised automation.
 
 ## Use Reddit Easy
 
-1. Import `reddit-easy.mcpb` or the versioned v0.3.5 bundle into Chat On Steroids or another MCPB-compatible host.
+1. Import `reddit-easy.mcpb` or the versioned v0.3.6 bundle into Chat On Steroids or another MCPB-compatible host.
 2. Pair the [browser companion](./browser-companion/README.md) once if your browser does not already expose a local debugger.
 3. Ask the agent to post to a named subreddit with Reddit Easy. It discovers the current signed-in account and calls `reddit_create_post` directly.
 
@@ -211,7 +211,7 @@ See [SECURITY.md](./SECURITY.md).
 ## Downloads and source
 
 - [`reddit-easy.mcpb`](./reddit-easy.mcpb) — current ready-to-import bundle
-- [`reddit-easy-v0.3.5.mcpb`](./reddit-easy-v0.3.5.mcpb) — current versioned MCPB
+- [`reddit-easy-v0.3.6.mcpb`](./reddit-easy-v0.3.6.mcpb) — current versioned MCPB
 - [Reddit Easy v0.3.1 release](../../releases/tag/reddit-easy-v0.3.1) — previous release, preserved unchanged
 - [`reddit-easy.mcpb.sha256`](./reddit-easy.mcpb.sha256) — checksum for the current bundle
 - [`manifest.json`](./manifest.json) — MCPB manifest

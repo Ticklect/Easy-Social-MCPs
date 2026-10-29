@@ -6,7 +6,7 @@ import { getDefaultBrowser, withYouTubePage } from "./browser.js";
 import { createReadHandlers } from "./reads.js";
 import { createWriteHandlers } from "./writes.js";
 
-const VERSION = "0.1.4";
+const VERSION = "0.1.5";
 
 export function createDefaultHandlers({ browser = getDefaultBrowser() } = {}) {
   const stateDir = browser.stateDir;

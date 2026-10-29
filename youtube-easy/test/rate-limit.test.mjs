@@ -118,3 +118,31 @@ test("real CDP network event persists cooldown and stops the current browser rea
   assert.equal(closed, 1, "error must close CDP connection");
   assert.ok(JSON.parse(fs.readFileSync(coordinationPaths(folder).profileTraffic, "utf8")).cooldownUntil > Date.now() + 20_000);
 });
+
+test("an early 429 during Network.enable blocks navigation and persists the shared cooldown", async () => {
+  const folder = root();
+  const commands = [];
+  let closed = 0;
+  class EarlyThrottleWebSocket {
+    constructor() { this.listeners = new Map(); queueMicrotask(() => this.emit("open")); }
+    addEventListener(name, fn) { this.listeners.set(name, fn); }
+    emit(name, event = {}) { this.listeners.get(name)?.(event); }
+    send(raw) {
+      const request = JSON.parse(raw);
+      commands.push(request.method);
+      if (request.method === "Network.enable") queueMicrotask(() => this.emit("message", { data: JSON.stringify({
+        method: "Network.responseReceived",
+        params: { type: "Fetch", response: { status: 429, url: "https://studio.youtube.com/youtubei/v1/browse" } },
+      }) }));
+      queueMicrotask(() => this.emit("message", { data: JSON.stringify({ id: request.id, result: {} }) }));
+    }
+    close() { closed++; this.emit("close"); }
+  }
+  const browser = new YouTubeBrowser({ stateDir: folder, WebSocketClass: EarlyThrottleWebSocket });
+  browser.start = async () => 43117;
+  browser.listTargets = async () => [{ id: "one", type: "page", url: "https://studio.youtube.com/", webSocketDebuggerUrl: "ws://127.0.0.1:43117/devtools/page/one" }];
+  await assert.rejects(browser.page(), /HTTP 429/);
+  assert.equal(commands.includes("Page.navigate"), false, "a detected cooldown must prevent navigation");
+  assert.equal(closed, 1);
+  assert.ok(JSON.parse(fs.readFileSync(coordinationPaths(folder).profileTraffic, "utf8")).cooldownUntil > Date.now() + 50_000);
+});

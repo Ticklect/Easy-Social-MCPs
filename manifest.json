@@ -2,7 +2,7 @@
   "manifest_version": "0.2",
   "name": "reddit-easy",
   "display_name": "Reddit Easy",
-  "version": "0.3.5",
+  "version": "0.3.6",
   "description": "Read and post on Reddit using an already signed-in Chromium browser or a dedicated profile. No API keys or password fields.",
   "long_description": "Reddit Easy can reuse a signed-in Helium/Chrome/Edge/Chromium browser through the paired Easy Social Browser Companion or an existing loopback CDP debugger, with a dedicated-browser fallback. It can read the personalized feed, subreddit feeds, search, posts, nested comments, inbox, notifications, saved items, and users while retaining explicit posting and editing tools. It has no third-party runtime dependencies, validates Reddit origins, treats Reddit content as untrusted, coordinates request pacing and cooldowns, blocks recent duplicate writes, and never erases an attached browser's profile.",
   "author": {

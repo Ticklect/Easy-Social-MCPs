@@ -220,6 +220,20 @@ export async function coordinatedXWrite({
     }
     const stateFile = accountFile(root, account);
     let dispatched = false;
+    let chosenJitter = 0;
+    let completionPacingSaved = false;
+    // The account lease remains held until the operation settles. Record a
+    // conservative next-write deadline from the actual operation completion,
+    // because synchronous intent persistence before the click can take tens
+    // of milliseconds on Windows and otherwise shorten the true click gap.
+    const preserveCompletionPacing = () => {
+      if (!dispatched || completionPacingSaved) return;
+      const state = readJson(stateFile);
+      if (!state || !Array.isArray(state.attempts)) throw new Error("X write pacing record is unavailable after sending; verify the outcome before retrying.");
+      writeJson(stateFile, { ...state,
+        nextWriteAt: Math.max(Number(state.nextWriteAt || 0), Date.now() + minGapMs + chosenJitter) });
+      completionPacingSaved = true;
+    };
     const markAttempt = async () => {
       if (dispatched) return;
       const state = readJson(stateFile) || {};
@@ -239,15 +253,19 @@ export async function coordinatedXWrite({
       const deadline = Number(state.nextWriteAt || 0);
       while (Date.now() < deadline) await sleep(Math.max(1, deadline - Date.now()));
       assertCooldown(readJson(requestsFile(root)) || {});
-      const at = Date.now();
-      const jitter = jitterMs ? crypto.randomInt(jitterMs + 1) : 0;
+      chosenJitter = jitterMs ? crypto.randomInt(jitterMs + 1) : 0;
       // Record potential send before executing any click, including its uncertain aftermath.
-      writeJson(stateFile, { attempts: [...attempts, at], nextWriteAt: at + minGapMs + jitter });
-      writeJson(file, { status: "pending", sentAt: at });
+      // Persist the intent first. Measuring the deadline before BOTH durable
+      // writes made the next browser click occur earlier than the configured
+      // minimum gap on slower Windows disks.
+      writeJson(file, { status: "pending", sentAt: Date.now() });
+      const at = Date.now();
+      writeJson(stateFile, { attempts: [...attempts, at], nextWriteAt: at + minGapMs + chosenJitter });
       dispatched = true;
     };
     try {
       const result = String(await operation(markAttempt));
+      preserveCompletionPacing();
       // A first-party 429/503 observed while the UI was submitting invalidates
       // a purely DOM-based success signal (e.g. composer disappearance).
       if (dispatched && Number(readJson(requestsFile(root))?.cooldownUntil || 0) > Date.now()) {
@@ -258,6 +276,8 @@ export async function coordinatedXWrite({
       return result;
     } catch (error) {
       if (dispatched) {
+        // Even an uncertain browser submission consumes its rate-limit slot.
+        try { preserveCompletionPacing(); } catch {}
         writeJson(file, { status: "uncertain", sentAt: Date.now() });
         return "UNCERTAIN: X did not confirm the action after a possible submission. Check X before retrying; X Easy will not automatically repeat it.";
       }

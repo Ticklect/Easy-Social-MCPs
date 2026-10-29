@@ -6,7 +6,7 @@ TikTok Easy packages the MIT-licensed `0xArtex/tiktok-mcp` browser-session imple
 
 ## Setup
 
-1. Import `tiktok-easy-v0.1.5.mcpb` into an MCPB-compatible host.
+1. Import `tiktok-easy-v0.1.6.mcpb` into an MCPB-compatible host.
 2. Ask your agent to post a local video using `tiktok_post`. If TikTok is signed in on an accessible existing Chromium browser **with a full localhost CDP debugger**, the tool verifies the current account and posts without a `tiktok_login` command. `account_id` defaults to `default` for posting.
 3. If the existing browser has no reachable full debugger, this direct-post path fails without opening a QR login. Run `tiktok_login` explicitly only when you want the separate TikTok QR-login profile. `tiktok_connect` also supports named accounts in dedicated profiles.
 
@@ -45,7 +45,7 @@ The shared Easy Social Browser Companion extension currently supports **tab-leve
 
 ## Attribution
 
-TikTok Easy v0.1.5 packages and adapts **0xArtex/tiktok-mcp** at commit `99ef0359a55ff64b7d4a913369cca5c7bfd2683b`.
+TikTok Easy v0.1.6 packages and adapts **0xArtex/tiktok-mcp** at commit `99ef0359a55ff64b7d4a913369cca5c7bfd2683b`.
 
 The upstream project is MIT licensed. Its original license is preserved in [THIRD_PARTY_LICENSES.md](./THIRD_PARTY_LICENSES.md).
 
@@ -65,7 +65,7 @@ Normal TikTok browser reads and analytics are also blocked during a persisted pl
 
 **Post duplicate protection:** TikTok Easy hashes the input video and normalized caption, privacy, interaction and scheduling options into an account-specific intent ID. Multiple MCP processes submitting the same intent within 24 hours reuse the original background operation ID rather than posting twice. A crashed or ambiguous previous post is reported `UNCERTAIN` and is not automatically retried; verify in TikTok Studio before changing inputs or attempting another post. A known failed pre-submission launch or protective rate-limit admission may be retried. File video identities are hashed incrementally from their contents (not path), and the persistent record stores a digest, not the video or credentials. This local safety window does not prevent manual posts or guarantee perfect idempotency outside the plugin.
 
-Offline checks: `npm --prefix tiktok-easy test` (packaged runtime regression tests) and `node tiktok-easy/scripts/build-v0.1.5.mjs` (deterministic rebuild from the pinned v0.1.4 source ZIP; downloads npm dependencies, no TikTok access).
+Offline checks: `npm --prefix tiktok-easy test` (packaged runtime regression tests), `node tiktok-easy/scripts/bench-browser-discovery.mjs` (mocked debugger discovery latency), `node tiktok-easy/scripts/bench-first-post-discovery.mjs` (mocked initial-post latency), `node tiktok-easy/scripts/bench-profile-identity.mjs` (read-only identity verification measurement), and `node tiktok-easy/scripts/build-v0.1.6.mjs` (deterministic rebuild from the pinned v0.1.5 source ZIP; downloads npm dependencies, no TikTok access). Browser debugger validation probes up to eight independent localhost endpoints concurrently, retaining strict endpoint checks and rejecting multiple active accounts. First-time direct posts now rely on `tiktok_connect`'s single fresh browser discovery with the existing `existing_browser_only` guard, saving the previous duplicate process scan without opening a QR login or skipping account verification. Profile identity still requires both visibility and the expected public handle; post-intent fingerprints continue hashing full local media contents to prevent accidental duplicate posts.
 
 The upstream implementation uses a QR relay service for the shareable login link. The browser session and persistent profile stay local, but QR handoff uses the relay described by the upstream project.
 

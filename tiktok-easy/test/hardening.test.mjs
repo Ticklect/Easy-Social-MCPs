@@ -127,9 +127,9 @@ test("shipped TikTok connect tools do not expose a model-controlled browser exec
   assert.doesNotMatch(text(packaged, "app/dist/runtime/local-runtime.js"), /browser_path/);
 });
 
-test("TikTok v0.1.5 retains previous immutable releases", () => {
+test("TikTok v0.1.6 retains previous immutable releases", () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(tiktokDir, "manifest.json"), "utf8"));
-  assert.equal(manifest.version, "0.1.5");
+  assert.equal(manifest.version, "0.1.6");
   const source = zipEntries(sourceZip);
   assert.match(text(source, "src/server.ts"), /version: "0\.1\.1"/);
   const workflow = fs.readFileSync(workflowPath, "utf8");
@@ -138,6 +138,7 @@ test("TikTok v0.1.5 retains previous immutable releases", () => {
   assert.ok(fs.existsSync(path.join(tiktokDir, "tiktok-easy-v0.1.0.mcpb")), "v0.1.0 MCPB must remain in the repository");
   assert.ok(fs.existsSync(path.join(tiktokDir, "tiktok-easy-v0.1.0-source.zip")), "v0.1.0 source ZIP must remain in the repository");
   assert.ok(fs.existsSync(path.join(tiktokDir, "tiktok-easy-v0.1.4.mcpb")), "the immutable v0.1.4 release artifact must remain in the repository");
+  assert.ok(fs.existsSync(path.join(tiktokDir, "tiktok-easy-v0.1.5.mcpb")), "the immutable v0.1.5 release artifact must remain in the repository");
 });
 
 test("shipped TikTok runtime uses the cross-process lock in both state updates and persistent profiles", async () => {
